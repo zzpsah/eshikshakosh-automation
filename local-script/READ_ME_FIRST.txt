@@ -15,73 +15,123 @@ YOU NEED NOTHING ELSE. No token. No browser. Just run the script.
 
 
 ================================================================================
-  FILES ON YOUR COMPUTER
+  FILES IN THIS FOLDER
 ================================================================================
 
-Location: C:\Users\Admin\
+Location: C:\Users\Admin\Eshikshakosh_OTR_Report\
 
-  FILE                              SIZE      WHAT IT IS
-  --------------------------------  --------  ---------------------------
-  esk_otr_api.py                    18,342    THE SCRIPT (run this)
-  eshikshakosh.conf                 73        Config (UDISE + password)
-  Student_OTR_Report_10160203806_   43,803    THE OUTPUT Excel file
-    2026-27.xlsx                              (generated after run)
+  FILE                        SIZE      WHAT IT IS
+  --------------------------  --------  ---------------------------
+  esk_otr_api.py              18,342    THE SCRIPT (run this)
+  eshikshakosh.conf           73        Config template (edit before use)
+  READ_ME_FIRST.txt           9,886     This file — full documentation
+  Student_OTR_Report_2026-27.xlsx  43,803  THE OUTPUT Excel file
+                                    (generated after run)
 
 
 ================================================================================
-  HOW TO RUN — 3 WAYS
+  HOW TO RUN — 4 WAYS
 ================================================================================
 
-WAY 1 — Direct command (simplest)
------------------------------------
+WAY 1 — Direct command with interactive password prompt (RECOMMENDED)
+----------------------------------------------------------------------
 Open Command Prompt and run:
 
-  cd C:\Users\Admin
+  cd C:\Users\Admin\Eshikshakosh_OTR_Report
 
   C:\Users\Admin\AppData\Local\hermes\hermes-agent\venv\Scripts\python
-    esk_otr_api.py --udise 10160203806 --password "Purpl3Tr@1n"
+    esk_otr_api.py --udise 10160203806
+
+  It will ask:
+    Password: [type your password — invisible]
+
+  Then it will show the captcha and either solve it automatically
+  OR ask you to type the answer.
 
 
-WAY 2 — Using config file (password not visible in command)
-------------------------------------------------------------
-The config file already exists at:
+WAY 2 — Direct command with password in command line
+------------------------------------------------------
+  cd C:\Users\Admin\Eshikshakosh_OTR_Report
 
-  C:\Users\Admin\eshikshakosh.conf
+  C:\Users\Admin\AppData\Local\hermes\hermes-agent\venv\Scripts\python
+    esk_otr_api.py --udise 10160203806 --password "your-password-here"
 
-Content:
+
+WAY 3 — Using config file
+--------------------------
+Edit eshikshakosh.conf first (remove the # from password line,
+replace "your-password-here" with your actual password):
+
   [eshikshakosh]
   udise = 10160203806
-  password = Purpl3Tr@1n
+  # password = your-password-here
   year = 2026-27
 
 Run with:
   C:\Users\Admin\AppData\Local\hermes\hermes-agent\venv\Scripts\python
-    esk_otr_api.py --config C:\Users\Admin\eshikshakosh.conf
+    esk_otr_api.py --config eshikshakosh.conf
 
 
-WAY 3 — Interactive password prompt
-------------------------------------
-  C:\Users\Admin\AppData\Local\hermes\hermes-agent\venv\Scripts\python
-    esk_otr_api.py --udise 10160203806
+WAY 4 — Python import (for embedding in other scripts)
+-------------------------------------------------------
+  from esk_otr_api import main_async
+  import asyncio
 
-  It will ask: Password:  (type Purpl3Tr@1n, invisible)
+  asyncio.run(main_async(
+      udise="10160203806",
+      password="your-password-here",
+      academic_year="2026-27",
+      output="my_report.xlsx"
+  ))
 
 
 ================================================================================
-  PYTHON & SCRIPT PATH (for reference)
+  HOW TO RUN DIRECTLY FROM PYTHON (WITHOUT HERMES)
 ================================================================================
 
-Python executable:
-  C:\Users\Admin\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+PREREQUISITES
+-------------
+1. Python 3.11+ installed and on PATH
+2. Install required packages:
 
-Script:
-  C:\Users\Admin\esk_otr_api.py
+   pip install requests pandas openpyxl playwright
 
-Config:
-  C:\Users\Admin\eshikshakosh.conf
+3. Install Playwright browser:
 
-Output (after run):
-  C:\Users\Admin\Student_OTR_Report_10160203806_2026-27.xlsx
+   python -m playwright install chromium
+
+4. The script is at:
+   C:\Users\Admin\Eshikshakosh_OTR_Report\esk_otr_api.py
+
+RUN FROM COMMAND PROMPT
+-----------------------
+   cd C:\Users\Admin\Eshikshakosh_OTR_Report
+   python esk_otr_api.py --udise 10160203806
+
+   (it will prompt for password and captcha)
+
+RUN FROM PYTHON SHELL / IDLE / JUPYTER
+---------------------------------------
+   import asyncio
+   from esk_otr_api import main_async
+
+   asyncio.run(main_async(
+       udise="10160203806",
+       password="your-password",
+       academic_year="2026-27"
+   ))
+
+RUN FROM ANOTHER PYTHON SCRIPT
+------------------------------
+   import subprocess
+   import os
+
+   os.chdir(r"C:\Users\Admin\Eshikshakosh_OTR_Report")
+   subprocess.run([
+       "python", "esk_otr_api.py",
+       "--udise", "10160203806",
+       "--password", "your-password"
+   ])
 
 
 ================================================================================
@@ -89,19 +139,22 @@ Output (after run):
 ================================================================================
 
 Step 1: Login via Playwright (headless browser)
-  - Opens Chrome headless
+  - Opens Chrome headless (no visible window)
   - Goes to e-Shikshakosh login page
   - Clicks "School Login" radio button
-  - Types UDISE: 10160203806
-  - Types password: Purpl3Tr@1n
-  - Reads captcha, solves math problem (e.g. "8 * 2" → 16)
+  - Types UDISE (from --udise argument)
+  - Types password (from --password or prompt)
+  - Reads captcha text from page
+  - TRIES TO AUTO-SOLVE: if captcha is a math problem like "8 * 2",
+    calculates the answer automatically (16)
+  - IF AUTO-SOLVE FAILS: prompts you to type the captcha answer manually
   - Clicks Submit
   - Captures JWT token + access token from login response
   - Closes browser
 
 Step 2: Fetch Student List (API call)
   - Calls: POST https://eshikshakosh.bihar.gov.in:8443/student/viewStudentList
-  - Gets all 220 students in batches of 100
+  - Gets all students in batches
   - Each student record has: name, code, father, aadhaar, mobile, class, etc.
 
 Step 3: Fetch Student Details (parallel, 16 at a time)
@@ -115,8 +168,8 @@ Step 4: Resolve Bank Names from IFSC
   - Caches results to avoid repeat lookups
 
 Step 5: Build Excel File
-  - Creates Student_OTR_Report_10160203806_2026-27.xlsx
-  - 27 columns, 220 student rows + header
+  - Creates Student_OTR_Report_<UDISE>_<YEAR>.xlsx
+  - 27 columns, all student rows + header
   - Formatted: colored header, borders, frozen top row, auto-filter
   - ID columns (Student Code, Aadhaar, Bank Account, IFSC, etc.)
     stored as TEXT to preserve leading zeros
@@ -127,10 +180,36 @@ Step 6: Print Summary
 
 
 ================================================================================
+  CAPTCHA HANDLING
+================================================================================
+
+AUTOMATIC (works for math captchas):
+  Captcha: "Let's solve this math problem : 8 * 2"
+  Script extracts "8 * 2", evaluates to 16, fills it in automatically.
+
+MANUAL (when auto-solve fails):
+  If the captcha format changes or evaluation fails, you will see:
+
+    Captcha shown: Let's solve this math problem : 7 + 3
+    Auto-captcha solve failed: ...
+    Please solve the captcha manually in the browser window.
+    Enter captcha answer: _
+
+  Type the answer (e.g. "10") and press Enter.
+  The script will fill it into the captcha field and continue.
+
+TROUBLESHOOTING CAPTCHA:
+  - If captcha says "Invalid captcha" after submit, the answer was wrong
+  - The script will log the captcha text — check if the math is correct
+  - Some captchas may not be math problems — manual entry is the fallback
+
+
+================================================================================
   OUTPUT FILE CONTENTS
 ================================================================================
 
-File: C:\Users\Admin\Student_OTR_Report_10160203806_2026-27.xlsx
+File: Student_OTR_Report_<UDISE>_<ACADEMIC_YEAR>.xlsx
+      (e.g. Student_OTR_Report_10160203806_2026-27.xlsx)
 
 Columns (27 total):
   1.  S.No.
@@ -200,13 +279,11 @@ Summary from actual file:
   HOW TO OPEN THE EXCEL FILE
 ================================================================================
 
-Double-click this file in File Explorer:
+Double-click in File Explorer:
 
-  C:\Users\Admin\Student_OTR_Report_10160203806_2026-27.xlsx
+  C:\Users\Admin\Eshikshakosh_OTR_Report\Student_OTR_Report_10160203806_2026-27.xlsx
 
-Or open Excel → File → Open → browse to:
-  C:\Users\Admin\
-  and select: Student_OTR_Report_10160203806_2026-27.xlsx
+Or open Excel → File → Open → browse to the folder above.
 
 The file has:
   - Frozen top row (header stays visible when scrolling)
@@ -222,13 +299,17 @@ The file has:
 PROBLEM: "python is not recognized"
 SOLUTION: Use full path:
   C:\Users\Admin\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
-    esk_otr_api.py --udise 10160203806 --password "Purpl3Tr@1n"
+    esk_otr_api.py --udise 10160203806
+
+PROBLEM: Password prompt not appearing
+SOLUTION: Make sure you didn't pass --password on the command line.
+  Without --password, the script prompts interactively.
 
 PROBLEM: Login fails / captcha error
-SOLUTION: The script solves simple math captchas automatically.
-  If captcha format changes, the script may fail. Check the output
-  for "Captcha answer" line — if it shows wrong answer, the portal
-  may have changed captcha format.
+SOLUTION:
+  - Check that UDISE (10160203806) and password are correct
+  - If auto-captcha fails, type the answer manually when prompted
+  - Check the output for "Captcha shown:" line to see what the captcha is
 
 PROBLEM: "No students found"
 SOLUTION: Check that UDISE is correct (10160203806) and academic
@@ -239,21 +320,23 @@ SOLUTION: These are harmless warnings. The Bihar portal uses
   self-signed certificates. The script handles them. Add
   --verify-ssl to enable strict verification (may fail).
 
-PROBLEM: Playwright not found
-SOLUTION: The script requires Playwright. It was installed at:
-  C:\Users\Admin\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\playwright
-  Browser binaries at:
-  C:\Users\Admin\AppData\Local\ms-playwright\chromium-1243
+PROBLEM: Playwright not found / browser not installed
+SOLUTION:
+  pip install playwright
+  python -m playwright install chromium
+
+PROBLEM: Script runs but no Excel file created
+SOLUTION: Check the output for errors. The script prints "Saved: <filename>"
+  when successful. If it exits early, there will be an error message.
 
 
 ================================================================================
   SECURITY NOTE
 ================================================================================
 
-The config file C:\Users\Admin\eshikshakosh.conf contains your password
-in plain text. Delete it after use:
-
-  del C:\Users\Admin\eshikshakosh.conf
+DO NOT commit eshikshakosh.conf with your real password to GitHub.
+The config file is a template — replace "your-password-here" with
+your actual password only in your local copy.
 
 The Excel file contains unmasked Aadhaar numbers for 219 students.
 Keep it secure and share only with authorized personnel.
@@ -263,16 +346,18 @@ Keep it secure and share only with authorized personnel.
   QUICK REFERENCE CARD
 ================================================================================
 
-RUN:   cd C:\Users\Admin
-        C:\Users\Admin\AppData\Local\hermes\hermes-agent\venv\Scripts\python
-          esk_otr_api.py -u 10160203806 -p "Purpl3Tr@1n"
+RUN:   cd C:\Users\Admin\Eshikshakosh_OTR_Report
+        python esk_otr_api.py --udise 10160203806
+        (password prompted interactively)
 
-OUTPUT: C:\Users\Admin\Student_OTR_Report_10160203806_2026-27.xlsx
+ OUTPUT: Student_OTR_Report_10160203806_2026-27.xlsx
 
-STUDENTS: 220 (Class 9: 33, Class 10: 34, Class 11: 78, Class 12: 75)
-AADHAAR:  219 unmasked
-BANK:     220 accounts with IFSC codes
-MOTHER:   220 names
-OTR:      0 registered, 220 pending
+ STUDENTS:    220 (Class 9: 33, Class 10: 34, Class 11: 78, Class 12: 75)
+ AADHAAR:     219 unmasked
+ BANK:        220 accounts with IFSC codes
+ MOTHER:      220 names
+ OTR:         0 registered, 220 pending
+
+ CAPTCHA:     Auto-solves math captchas; prompts manually if fails
 
 ================================================================================

@@ -105,10 +105,25 @@ async def login_playwright(uid: str, pwd: str) -> dict:
         await page.fill("input[formcontrolname='userId']", uid)
         await page.fill("input[formcontrolname='password']", pwd)
 
+        # Try to solve captcha automatically (math expression)
         captcha_text = await page.inner_text(".capcha__head")
-        expr = captcha_text.split(":")[-1].strip()
-        captcha_answer = str(int(eval(expr)))
-        await page.fill("input[placeholder='Enter User Captcha']", captcha_answer)
+        log.info("Captcha shown: %s", captcha_text)
+        try:
+            expr = captcha_text.split(":")[-1].strip()
+            captcha_answer = str(int(eval(expr)))
+            log.info("Auto-solved captcha: %s → %s", expr, captcha_answer)
+            await page.fill("input[placeholder='Enter User Captcha']", captcha_answer)
+        except Exception as e:
+            log.warning("Auto-captcha solve failed: %s", e)
+            log.info("Please solve the captcha manually in the browser window.")
+            # Prompt user to enter captcha manually
+            user_captcha = input("Enter captcha answer: ").strip()
+            if user_captcha:
+                await page.fill("input[placeholder='Enter User Captcha']", user_captcha)
+            else:
+                log.error("No captcha entered — aborting login.")
+                await browser.close()
+                return {}
         await page.click("input.submit__btn")
 
         for _ in range(120):
