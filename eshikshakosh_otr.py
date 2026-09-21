@@ -1,8 +1,12 @@
-"""Read-only e-ShikshaKosh student report export.
+e-Shikshakosh read-only student report export (COLAB ORIGINAL).
 
-Use a manually obtained, short-lived bearer token. This script never automates
-password, CAPTCHA, OTP, or portal submission flows and never writes to the
-portal. It masks sensitive values before writing an Excel workbook.
+DEPRECATED FOR LOCAL USE - see local-script/esk_otr_api.py for the
+full local automation version (Playwright login, auto-captcha, unmasked
+Aadhaar/bank/OTR data, Excel export).
+
+This version: manual bearer token only, masks sensitive fields, no
+automation of password/CAPTCHA/OTP/portal submission. Use for quick
+read-only exports when you already have a short-lived token.
 """
 
 from __future__ import annotations
