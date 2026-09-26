@@ -23,14 +23,18 @@ set -euo pipefail
 
 REPO="${HOME}/projects/eshikshakosh-automation"
 RUNNER="${REPO}/local-script/run_report.sh"
-YEAR="${1:-2026-27}"
+YEAR="${1:-}"
 
 if [[ ! -x "$RUNNER" ]]; then
   echo "ERROR: report runner missing or not executable: $RUNNER" >&2
   exit 2
 fi
 
-export ESHIKSHAKOSH_YEAR="$YEAR"
+if [[ -n "$YEAR" ]]; then
+  export ESHIKSHAKOSH_YEAR="$YEAR"
+else
+  unset ESHIKSHAKOSH_YEAR || true
+fi
 exec eshikshakosh-run "$RUNNER"
 EOF
 
