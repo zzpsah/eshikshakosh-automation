@@ -4,7 +4,19 @@ set -euo pipefail
 REPO="${HOME}/projects/eshikshakosh-automation"
 PY="${REPO}/.venv/bin/python"
 APP="${REPO}/local-script/esk_otr_api.py"
-YEAR="${ESHIKSHAKOSH_YEAR:-2026-27}"
+if [[ -n "${ESHIKSHAKOSH_YEAR:-}" ]]; then
+  YEAR="$ESHIKSHAKOSH_YEAR"
+else
+  current_year="$(date +%Y)"
+  current_month="$(date +%m)"
+  if (( 10#$current_month >= 4 )); then
+    start_year="$current_year"
+  else
+    start_year="$((current_year - 1))"
+  fi
+  next_short="$(printf '%02d' $(((start_year + 1) % 100)))"
+  YEAR="${start_year}-${next_short}"
+fi
 
 cd "$REPO"
 
