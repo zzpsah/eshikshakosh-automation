@@ -151,3 +151,36 @@ Academic Year: <year>
 Students: <count>
 Attached: <filename>
 ```
+
+
+## STRICT EXECUTION ROUTE
+
+For any request that asks for an e-ShikshaKosh student report, student details report, OTR report, or school student Excel:
+
+- Do NOT improvise with a generic browser workflow.
+- Do NOT switch the task to teacher data.
+- Do NOT browse portal pages manually unless the local report runner itself explicitly requires an interactive fallback.
+- Do NOT invent selectors or scrape unrelated modules.
+- Do NOT claim login success based only on a page click or redirect.
+- Do NOT use a different report path when the configured runner exists.
+
+The required execution path is:
+
+```text
+request
+  -> identify school
+  -> resolve authorized credentials
+  -> run ~/.local/bin/eshikshakosh-report
+  -> wait for REPORT_READY=<path>
+  -> send that .xlsx back in the same private channel
+```
+
+For the known UMV Tetahali credentials, call only:
+
+```bash
+~/.local/bin/eshikshakosh-report
+```
+
+If that command fails, stop and report the exact failing stage. Do not fall back to ad-hoc browser automation or teacher-data extraction.
+
+A successful run must be based on the local runner returning a real report file. Browser navigation alone is not success.
