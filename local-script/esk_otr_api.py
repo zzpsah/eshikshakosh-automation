@@ -37,6 +37,13 @@ DETAIL_URL = f"{BASE_URL}/student/studentInfo"
 # Helpers
 # ---------------------------------------------------------------------------
 
+def current_academic_year() -> str:
+    """Return the current Indian school academic session as YYYY-YY (Apr-Mar)."""
+    now = datetime.now()
+    start_year = now.year if now.month >= 4 else now.year - 1
+    return f"{start_year}-{(start_year + 1) % 100:02d}"
+
+
 def decode_jwt(token: str) -> dict:
     try:
         clean = token.replace("Bearer", "").strip()
@@ -469,8 +476,8 @@ def main():
                         help="Portal User ID / School UDISE")
     parser.add_argument("--password", "-p", default=None,
                         help="Portal password")
-    parser.add_argument("--year", "-y", default="2026-27",
-                        help="Academic year (default: 2026-27)")
+    parser.add_argument("--year", "-y", default=current_academic_year(),
+                        help="Academic year (default: current Apr-Mar session)")
     parser.add_argument("--output", "-o", default=None,
                         help="Output Excel file")
     parser.add_argument("--verify-ssl", action="store_true",
