@@ -1,7 +1,7 @@
 ---
 name: eshikshakosh-otr
 description: Generate a private read-only e-ShikshaKosh OTR Excel report and return it to the requesting Telegram or WhatsApp chat.
-version: 2.0.0
+version: 2.1.0
 author: zzpsah, Hermes Agent
 license: MIT
 platforms: [linux]
@@ -24,7 +24,7 @@ Use this skill when an authorized user asks for an e-ShikshaKosh report from Tel
 3. Ask for the school name first if it is not already clear.
 4. For a known school with stored Bitwarden credentials, use the stored credentials through the verified `eshikshakosh-run` launcher.
 5. For an unknown school, ask for the portal user ID / UDISE and a one-time password. Do not store that password in memory, Git, logs, or a config file.
-6. Default academic year to `2026-27` unless the user specifies another year.
+6. Use the current academic session automatically (April-March). Do not ask for the year unless the user explicitly requests a different session.
 7. Generate the private Excel report with `local-script/esk_otr_api.py`.
 8. Send the resulting `.xlsx` file directly back to the requester as a document attachment.
 9. Do not paste Aadhaar, bank account, mobile number, password, token, cookie, or other sensitive values into chat text.
@@ -82,8 +82,7 @@ cd ~/projects/eshikshakosh-automation
 
 eshikshakosh-run .venv/bin/python local-script/esk_otr_api.py \
   --udise "$ESHIKSHAKOSH_USERNAME" \
-  --password "$ESHIKSHAKOSH_PASSWORD" \
-  --year "2026-27"
+  --password "$ESHIKSHAKOSH_PASSWORD"
 ```
 
 Never echo the expanded command or run with shell tracing enabled.
@@ -114,7 +113,7 @@ Example context:
 ```text
 e-ShikshaKosh Report
 School: UMV Tetahali
-Academic Year: 2026-27
+Academic Year: <current session>
 Total Students: 220
 OTR Registered: 205
 OTR Pending: 15
