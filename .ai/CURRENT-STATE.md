@@ -1,0 +1,23 @@
+# Current State
+
+Last documented: 2026-09-27
+
+## Verified local workflow
+- Repo-local `.venv` is used.
+- Playwright and `nest_asyncio` are installed for the local path.
+- Bitwarden-backed credential injection was verified without intentionally displaying secret values.
+- `local-script/esk_otr_api.py` generated a real current-session workbook.
+- Verified summary from that run: 220 students; 2 OTR registered; 218 pending; 219 Aadhaar values present; 220 bank accounts; 220 mother names.
+- Academic session defaults automatically using an April-March boundary.
+- Hermes student-report execution is pinned to `~/.local/bin/eshikshakosh-report`.
+- Same-channel Telegram/WhatsApp attachment delivery still needs end-to-end verification.
+
+## Known issue
+Hermes messaging exposed internal prompt/tool-routing text in a user-visible reply. Request-dump inspection showed the strings existed in normal internal instructions/tool metadata. A fresh-session reset removed the obvious raw dump once, but the issue is not considered closed.
+
+## Next
+- Prove Telegram file delivery.
+- Prove WhatsApp file delivery.
+- Rename output to Student Details naming.
+- Add private multi-school credential mapping.
+- Continue Hermes output hardening.
