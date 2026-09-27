@@ -80,3 +80,26 @@ Telegram/WhatsApp attachment delivery is still pending end-to-end verification.
 
 A messaging-session defect was observed where internal attachment/tool-routing text leaked into user-visible responses. Request-dump inspection showed those phrases originated from normal internal instructions/tool descriptions; the problem is their accidental echo in the outward reply. A fresh-session reset removed the obvious leak in one immediate test, but the issue remains open until repeated channel tests pass.
 
+
+
+## DevOS / Vibe Coding project context
+
+Read these before substantial changes:
+
+- [PRD](PRD.md)
+- [Development rules](RULES.md)
+- [Tasks](TASKS.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Design](docs/DESIGN.md)
+- [Test plan](docs/TEST_PLAN.md)
+- [Security](docs/SECURITY.md)
+- [Decisions](docs/DECISIONS.md)
+- [Project memory](docs/MEMORY.md)
+- [Commands](docs/COMMANDS.md)
+- [History](docs/HISTORY.md)
+
+Material work follows:
+
+```text
+READ -> UNDERSTAND -> PLAN -> IMPLEMENT -> TEST -> REVIEW -> FIX -> COMMIT -> UPDATE DOCUMENTATION
+```
