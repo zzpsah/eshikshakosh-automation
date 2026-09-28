@@ -44,19 +44,19 @@ before="$(mktemp)"
 after="$(mktemp)"
 trap 'rm -f "$before" "$after"' EXIT
 
-find "$REPO" -maxdepth 1 -type f -name 'Student_OTR_Report_*.xlsx' -printf '%f\n' | sort > "$before"
+find "$REPO" -maxdepth 1 -type f -name 'Student_Details_*.xlsx' -printf '%f\n' | sort > "$before"
 
 "$PY" "$APP" \
   --udise "$ESHIKSHAKOSH_USERNAME" \
   --password "$ESHIKSHAKOSH_PASSWORD" \
   --year "$YEAR"
 
-find "$REPO" -maxdepth 1 -type f -name 'Student_OTR_Report_*.xlsx' -printf '%f\n' | sort > "$after"
+find "$REPO" -maxdepth 1 -type f -name 'Student_Details_*.xlsx' -printf '%f\n' | sort > "$after"
 
 report="$(comm -13 "$before" "$after" | tail -n 1)"
 
 if [[ -z "$report" ]]; then
-  report="$(find "$REPO" -maxdepth 1 -type f -name 'Student_OTR_Report_*.xlsx' -printf '%T@ %f\n' | sort -nr | head -n1 | cut -d' ' -f2-)"
+  report="$(find "$REPO" -maxdepth 1 -type f -name 'Student_Details_*.xlsx' -printf '%T@ %f\n' | sort -nr | head -n1 | cut -d' ' -f2-)"
 fi
 
 if [[ -z "$report" || ! -f "$REPO/$report" ]]; then
