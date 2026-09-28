@@ -20,3 +20,10 @@
 
 ## Memory rule
 Never store credentials, secret values, tokens, cookies, OTPs, or private student records here.
+
+
+## Report naming and messaging
+
+- Report filename pattern: `Student_Details_<School>_<Session>.xlsx` with a filesystem-safe school component.
+- Telegram same-private-chat Excel delivery is verified.
+- WhatsApp same-channel Excel delivery remains pending verification.
