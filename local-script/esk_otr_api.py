@@ -45,6 +45,16 @@ def current_academic_year() -> str:
     return f"{start_year}-{(start_year + 1) % 100:02d}"
 
 
+def safe_filename_component(value: str, fallback: str = "School") -> str:
+    """Return a filesystem-safe compact filename component."""
+    cleaned = "".join(
+        ch if ch.isalnum() or ch in (" ", "-", "_") else " "
+        for ch in str(value or "")
+    )
+    cleaned = "_".join(cleaned.split()).strip("._-")
+    return cleaned or fallback
+
+
 def decode_jwt(token: str) -> dict:
     try:
         clean = token.replace("Bearer", "").strip()
@@ -394,7 +404,9 @@ async def main_async(udise, password, academic_year, output, verify_ssl):
 
     # Write Excel
     if not output:
-        output = f"Student_OTR_Report_{udise}_{academic_year}.xlsx"
+        school_part = safe_filename_component(school_name, fallback=str(udise))
+        session_part = safe_filename_component(academic_year, fallback="Session")
+        output = f"Student_Details_{school_part}_{session_part}.xlsx"
 
     columns = list(records[0].keys())
     wb = Workbook()
