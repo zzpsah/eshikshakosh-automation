@@ -23,3 +23,9 @@
 ## Guarded
 - [ ] Do not introduce portal mutation without a separate explicit design and approval.
 - [ ] Do not upload generated student workbooks to GitHub.
+
+
+## Messaging verification
+
+- [x] Telegram same-channel Excel delivery verified.
+- [ ] WhatsApp same-channel Excel delivery verification pending.
