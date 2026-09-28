@@ -1,7 +1,7 @@
 ---
 name: eshikshakosh-otr
 description: Generate a private read-only e-ShikshaKosh OTR Excel report and return it to the requesting Telegram or WhatsApp chat.
-version: 2.1.0
+version: 2.2.0
 author: zzpsah, Hermes Agent
 license: MIT
 platforms: [linux]
@@ -95,9 +95,17 @@ Do not permanently save credentials unless the user explicitly requests credenti
 
 ## Report delivery
 
+Default filename pattern:
+
+```text
+Student_Details_<School>_<Session>.xlsx
+```
+
+The school portion must be filesystem-safe and should use the actual school name when available.
+
 After a successful run:
 
-1. Find the newly generated `Student_OTR_Report_*.xlsx` file.
+1. Find the newly generated `Student_Details_*.xlsx` file.
 2. Build a short context message using only non-sensitive summary fields:
    - school name
    - academic year
