@@ -61,6 +61,16 @@ A real local run succeeded for UMV Tetahali for the current academic session. Th
 
 The current academic session is derived automatically using an April-March boundary unless explicitly overridden.
 
+### Report filename
+
+The local Hermes/VPS report now uses:
+
+```text
+Student_Details_<School>_<Session>.xlsx
+```
+
+The school name is sanitized for filesystem safety.
+
 ### Hermes execution rule
 
 For e-ShikshaKosh student-report requests, Hermes must use the verified local command path and must not improvise with generic browser scraping or switch to teacher-data extraction.
@@ -74,7 +84,7 @@ request -> identify school -> resolve authorized credentials
         -> send the .xlsx back in the same private channel
 ```
 
-Telegram/WhatsApp attachment delivery is still pending end-to-end verification.
+Telegram end-to-end attachment delivery is verified. WhatsApp end-to-end attachment delivery is still pending verification.
 
 ### Known Hermes issue
 
