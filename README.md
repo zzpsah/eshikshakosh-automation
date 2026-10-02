@@ -12,7 +12,7 @@ Private, read-only Python and Google Colab project for producing a reviewed e-Sh
 
 This project is deliberately read-only. It does not submit, edit, certify, or delete portal records. Login is manual: enter a short-lived Bearer token only into the active runtime when prompted. Never commit tokens, cookies, passwords, OTPs, exported workbooks, Aadhaar numbers, bank-account numbers, or other student data.
 
-The original supplied draft was not published unchanged because it disabled TLS verification, attempted to automate a CAPTCHA-like challenge, and requested unmasked Aadhaar/bank data. This maintained version uses normal TLS verification, does not automate CAPTCHA or password login, and masks sensitive data in every export.
+The original supplied draft was not published unchanged because it disabled TLS verification, attempted to automate a CAPTCHA-like challenge, and requested unmasked Aadhaar/bank data. This maintained version uses normal TLS verification, does not automate CAPTCHA or password login, and supports user-selected `full` or `masked` export mode; default is `full`.
 
 ## Run locally
 
@@ -36,7 +36,7 @@ Open `Eshikshakosh_OTR.ipynb`, upload `eshikshakosh_otr.py` when prompted, then 
 
 ## Local Hermes/VPS workflow
 
-The VPS integration now uses a separate local automation path under `local-script/`. This path is intentionally distinct from the safer masked Colab/manual-token workflow described above.
+The VPS integration now uses a separate local automation path under `local-script/`. This path is intentionally distinct from the manual-token Colab/CLI workflow described above.
 
 Key local components:
 
@@ -118,9 +118,25 @@ READ -> UNDERSTAND -> PLAN -> IMPLEMENT -> TEST -> REVIEW -> FIX -> COMMIT -> UP
 
 The repository has two deliberately separate paths:
 
-- **Safe/manual exporter:** `eshikshakosh_otr.py` uses a short-lived bearer token, normal TLS verification, masked sensitive fields, and no portal mutation.
+- **Safe/manual exporter:** `eshikshakosh_otr.py` uses a short-lived bearer token, normal TLS verification, user-selected export privacy mode (default `full`), and no portal mutation.
 - **Private local automation:** `local-script/esk_otr_api.py` plus `local-script/run_report.sh` is for the authorized private runtime only. Credentials come from the protected runtime environment/wrapper; generated reports remain local and are ignored by Git.
 
 Do not infer or commit unverified portal endpoints. Generated student workbooks are operational artifacts, not source files.
 
 Project-specific recovery/state context is also maintained in `brain/eshikshakosh-report/`.
+
+## Export privacy mode
+
+User controls export privacy. Supported modes: `full` and `masked`. Default: **`full`**. The system must not silently change the selected mode.
+
+Launcher examples:
+
+```text
+~/.local/bin/eshikshakosh-report
+~/.local/bin/eshikshakosh-report 2026-27
+~/.local/bin/eshikshakosh-report 2026-27 masked
+```
+
+## Slash command aliases
+
+Preferred command: `/eshikshakosh`. Short aliases: `/esk`, `/esk-report`, `/eshikshakosh-report`; typo-compatible `/eshikakossh-report` is also accepted. Without a school name the command asks for one. Known school aliases are matched to Bitwarden credentials; missing credentials route to the secure `/bw add` form.
