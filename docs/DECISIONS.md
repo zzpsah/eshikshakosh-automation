@@ -4,7 +4,7 @@
 Student report automation may authenticate and read authorized data, but does not edit, certify, delete, or submit portal records.
 
 ## 2026-09-27 — Separate safe and private report paths
-Keep the safer masked manual/Colab flow separate from the local authorized unmasked VPS flow.
+Keep the manual/Colab flow separate from the private local VPS flow; both honor user-selected export mode.
 
 ## 2026-09-27 — Runtime secret injection
 Known-school credentials are injected through the verified Bitwarden launcher and must not be printed or committed.
@@ -20,3 +20,6 @@ Telegram requests should return Telegram attachments; WhatsApp requests should r
 
 ## 2026-09-27 — Vibe Coding baseline
 All substantial work follows READ -> UNDERSTAND -> PLAN -> IMPLEMENT -> TEST -> REVIEW -> FIX -> COMMIT -> UPDATE DOCUMENTATION.
+
+## 2026-10-02 — User-controlled export mode
+Export privacy is controlled by the user. Supported modes are `full` and `masked`; default is **`full`**. Slash commands accept multiple aliases and school-name aliases. Missing credentials are collected through the secure Bitwarden guided flow, never password-in-chat.
