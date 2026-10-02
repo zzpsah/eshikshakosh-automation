@@ -113,3 +113,14 @@ Material work follows:
 ```text
 READ -> UNDERSTAND -> PLAN -> IMPLEMENT -> TEST -> REVIEW -> FIX -> COMMIT -> UPDATE DOCUMENTATION
 ```
+
+## Runtime profiles and recovery brain
+
+The repository has two deliberately separate paths:
+
+- **Safe/manual exporter:** `eshikshakosh_otr.py` uses a short-lived bearer token, normal TLS verification, masked sensitive fields, and no portal mutation.
+- **Private local automation:** `local-script/esk_otr_api.py` plus `local-script/run_report.sh` is for the authorized private runtime only. Credentials come from the protected runtime environment/wrapper; generated reports remain local and are ignored by Git.
+
+Do not infer or commit unverified portal endpoints. Generated student workbooks are operational artifacts, not source files.
+
+Project-specific recovery/state context is also maintained in `brain/eshikshakosh-report/`.

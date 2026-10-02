@@ -9,3 +9,9 @@
 - Unknown-school credentials are one-time runtime values unless the user separately approves storage.
 - Authentication success does not authorize portal mutation.
 - No production deployment or consequential portal/data mutation without explicit approval.
+
+## Repository-history note
+- The safe/manual exporter masks sensitive identifiers; the private local runtime may process fuller student records only inside the authorized private environment.
+- Do not commit guessed/unverified portal endpoints as implemented features.
+- Removing a previously tracked sensitive artifact from the current branch does not erase historical Git objects.
+- Any Git-history rewrite must be handled as a separate coordinated high-impact operation; do not casually force-push shared history.
