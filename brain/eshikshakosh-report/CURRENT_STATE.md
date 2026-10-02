@@ -11,3 +11,12 @@ Last verified: 2026-10-02.
 - `*.xlsx` is ignored by Git.
 - Unverified guessed teacher API placeholder was removed and not committed.
 - Portal-changing operations are not part of this project.
+
+## Command UX and export mode — 2026-10-02
+
+- Canonical slash command: `/eshikshakosh`.
+- Aliases: `/esk`, `/esk-report`, `/eshikshakosh-report`, `/eshikakossh-report`.
+- No-argument command asks for school name.
+- Known school aliases resolve to stored Bitwarden credentials when the pair exists.
+- Missing credentials route to secure `/bw add` rather than password-in-chat.
+- Export modes: `full` / `masked`; default **`full`**.
