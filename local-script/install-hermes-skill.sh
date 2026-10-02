@@ -24,6 +24,12 @@ set -euo pipefail
 REPO="${HOME}/projects/eshikshakosh-automation"
 RUNNER="${REPO}/local-script/run_report.sh"
 YEAR="${1:-}"
+MODE="${2:-full}"
+
+if [[ "$MODE" != "full" && "$MODE" != "masked" ]]; then
+  echo "ERROR: mode must be full or masked" >&2
+  exit 2
+fi
 
 if [[ ! -x "$RUNNER" ]]; then
   echo "ERROR: report runner missing or not executable: $RUNNER" >&2
@@ -35,6 +41,7 @@ if [[ -n "$YEAR" ]]; then
 else
   unset ESHIKSHAKOSH_YEAR || true
 fi
+export ESHIKSHAKOSH_EXPORT_MODE="$MODE"
 exec eshikshakosh-run "$RUNNER"
 EOF
 
