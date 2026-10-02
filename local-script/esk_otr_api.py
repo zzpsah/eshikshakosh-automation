@@ -217,6 +217,23 @@ IFSC_PREFIX_MAP = {
 BANK_CACHE = {"CBIN0R10001": "Uttar Bihar Gramin Bank",
               "IPOS0000001": "India Post Payments Bank"}
 
+def mask_export_value(value, visible=4):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return "*" * max(0, len(text) - visible) + text[-visible:]
+
+
+def apply_export_mode(record: dict, export_mode: str) -> dict:
+    if export_mode == "full":
+        return record
+    masked = dict(record)
+    for key in ("Aadhaar Number", "Bank Account No", "Mobile Number"):
+        if key in masked:
+            masked[key] = mask_export_value(masked[key])
+    return masked
+
+
 def resolve_bank_name(ifsc: str) -> str:
     if not ifsc:
         return ""
@@ -241,7 +258,7 @@ def resolve_bank_name(ifsc: str) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
-async def main_async(udise, password, academic_year, output, verify_ssl):
+async def main_async(udise, password, academic_year, output, verify_ssl, export_mode="full"):
     log.info("Logging in as UDISE %s ...", udise)
     captured = await login_playwright(udise, password)
     token = captured.get("token")
@@ -372,7 +389,7 @@ async def main_async(udise, password, academic_year, output, verify_ssl):
         gender = str(s.get("gender"))
         gender_text = "Male" if gender == "1" else "Female" if gender == "2" else ""
 
-        records.append({
+        records.append(apply_export_mode({
             "S.No.": idx,
             "Student Name": str(s.get("studentName") or dt.get("studentName") or "").strip(),
             "Student Code": code,
@@ -400,7 +417,7 @@ async def main_async(udise, password, academic_year, output, verify_ssl):
             "School Name": school_name,
             "UDISE": udise,
             "Academic Year": academic_year,
-        })
+        }, export_mode))
 
     # Write Excel
     if not output:
@@ -473,6 +490,7 @@ async def main_async(udise, password, academic_year, output, verify_ssl):
     mom = sum(1 for r in records if r["Mother's Name"])
     print(f"\n{'='*60}")
     print(f"  Report: {output}")
+    print(f"  Export Mode: {export_mode.upper()}")
     print(f"  Total Students: {len(records)}")
     print(f"  OTR Registered: {reg}")
     print(f"  OTR Pending:    {pend}")
@@ -495,6 +513,8 @@ def main():
                         help="Output Excel file")
     parser.add_argument("--verify-ssl", action="store_true",
                         help="Enable SSL verification")
+    parser.add_argument("--export-mode", choices=["full", "masked"], default="full",
+                        help="Export privacy mode (default: full)")
     args = parser.parse_args()
 
     if not args.password:
@@ -503,7 +523,7 @@ def main():
 
     asyncio.get_event_loop().run_until_complete(
         main_async(args.udise, args.password, args.year,
-                   args.output, args.verify_ssl))
+                   args.output, args.verify_ssl, args.export_mode))
 
 
 if __name__ == "__main__":
