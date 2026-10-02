@@ -45,8 +45,10 @@ def mask(value: Any, visible: int = 4) -> str:
     return "*" * max(0, len(value) - visible) + value[-visible:]
 
 
-def normalise_record(record: dict[str, Any]) -> dict[str, Any]:
-    """Retain non-sensitive fields and mask sensitive identifiers in exports."""
+def normalise_record(record: dict[str, Any], export_mode: str = "full") -> dict[str, Any]:
+    """Return a record using the user-selected export privacy mode."""
+    if export_mode == "full":
+        return dict(record)
     sensitive = {"aadhaar", "aadhar", "account", "bankaccount", "mobile", "phone"}
     cleaned: dict[str, Any] = {}
     for key, value in record.items():
@@ -79,6 +81,9 @@ def main() -> None:
     print("e-ShikshaKosh read-only report export")
     print("Manual login only. Do not paste a password, OTP, or cookie here.")
     academic_year = input("Academic year [2026-27]: ").strip() or "2026-27"
+    export_mode = input("Export mode [full/masked] (default full): ").strip().lower() or "full"
+    if export_mode not in {"full", "masked"}:
+        raise RuntimeError("Export mode must be full or masked.")
     token = getpass.getpass("Paste a short-lived Bearer token: ").strip().removeprefix("Bearer").strip()
     if not token:
         raise RuntimeError("A bearer token is required; no request was sent.")
@@ -91,10 +96,10 @@ def main() -> None:
     headers = {"accept": "application/json, text/plain, */*", "content-type": "application/json", "authorization": f"Bearer {token}", "origin": "https://eshikshakosh.bihar.gov.in", "referer": "https://eshikshakosh.bihar.gov.in/"}
     session = requests.Session()  # TLS verification remains enabled.
     records = fetch_student_pages(session, headers, school_id, academic_year)
-    frame = pd.DataFrame([normalise_record(record) for record in records])
+    frame = pd.DataFrame([normalise_record(record, export_mode) for record in records])
     output = Path(f"Eshikshakosh_ReadOnly_Report_{academic_year}_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
     frame.to_excel(output, index=False)
-    print(f"Created {output} with {len(frame)} masked record(s). Review before use.")
+    print(f"Created {output} with {len(frame)} record(s). EXPORT_MODE={export_mode.upper()}. Review before use.")
 
 
 if __name__ == "__main__":
