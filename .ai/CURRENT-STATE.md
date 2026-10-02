@@ -21,3 +21,11 @@ Hermes messaging exposed internal prompt/tool-routing text in a user-visible rep
 - Rename output to Student Details naming.
 - Add private multi-school credential mapping.
 - Continue Hermes output hardening.
+
+## Messaging report command — 2026-10-02
+
+- `/eshikshakosh` plus short/typo aliases are supported.
+- School name is requested when absent.
+- Known aliases can resolve Bitwarden credentials automatically.
+- Missing credentials use secure `/bw add` flow.
+- Export mode is user-controlled, default `full`.
