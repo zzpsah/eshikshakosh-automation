@@ -1,7 +1,7 @@
 ---
 name: eshikshakosh-otr
 description: Generate a private read-only e-ShikshaKosh OTR Excel report and return it to the requesting Telegram or WhatsApp chat.
-version: 2.2.0
+version: 2.3.0
 author: zzpsah, Hermes Agent
 license: MIT
 platforms: [linux]
@@ -14,6 +14,21 @@ metadata:
 # e-ShikshaKosh OTR Report
 
 Use this skill when an authorized user asks for an e-ShikshaKosh report from Telegram or WhatsApp.
+
+## Slash command UX
+
+Accepted commands:
+- `/eshikshakosh` (canonical)
+- `/esk`
+- `/esk-report`
+- `/eshikshakosh-report`
+- `/eshikakossh-report` (typo-compatible)
+
+If no school is supplied, ask for the school name. Accept school aliases such as `UMV Tetahali`, `Tetahali`, and `Uchcha Madhyamik Vidyalaya Tetahali`.
+
+If the school has a complete Bitwarden credential pair, use it automatically. If not, direct the user to the secure guided `/bw add` form to enter username/password; do not ask for the password in chat text.
+
+Export mode is user-controlled: `full` or `masked`, default **`full`**. Do not silently change the selected mode.
 
 ## Core behavior
 
