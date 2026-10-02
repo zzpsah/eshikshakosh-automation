@@ -4,6 +4,12 @@ set -euo pipefail
 REPO="${HOME}/projects/eshikshakosh-automation"
 PY="${REPO}/.venv/bin/python"
 APP="${REPO}/local-script/esk_otr_api.py"
+EXPORT_MODE="${ESHIKSHAKOSH_EXPORT_MODE:-full}"
+if [[ "$EXPORT_MODE" != "full" && "$EXPORT_MODE" != "masked" ]]; then
+  echo "ERROR: ESHIKSHAKOSH_EXPORT_MODE must be full or masked" >&2
+  exit 2
+fi
+
 if [[ -n "${ESHIKSHAKOSH_YEAR:-}" ]]; then
   YEAR="$ESHIKSHAKOSH_YEAR"
 else
@@ -49,7 +55,8 @@ find "$REPO" -maxdepth 1 -type f -name 'Student_Details_*.xlsx' -printf '%f\n' |
 "$PY" "$APP" \
   --udise "$ESHIKSHAKOSH_USERNAME" \
   --password "$ESHIKSHAKOSH_PASSWORD" \
-  --year "$YEAR"
+  --year "$YEAR" \
+  --export-mode "$EXPORT_MODE"
 
 find "$REPO" -maxdepth 1 -type f -name 'Student_Details_*.xlsx' -printf '%f\n' | sort > "$after"
 
@@ -64,4 +71,5 @@ if [[ -z "$report" || ! -f "$REPO/$report" ]]; then
   exit 4
 fi
 
+printf 'EXPORT_MODE=%s\n' "${EXPORT_MODE^^}"
 printf 'REPORT_READY=%s\n' "$REPO/$report"
