@@ -140,3 +140,17 @@ Launcher examples:
 ## Slash command aliases
 
 Preferred command: `/eshikshakosh`. Short aliases: `/esk`, `/esk-report`, `/eshikshakosh-report`; typo-compatible `/eshikakossh-report` is also accepted. Without a school name the command asks for one. Known school aliases are matched to Bitwarden credentials; missing credentials route to the secure `/bw add` form.
+
+## Class / section / stream scoped reports
+
+The private VPS report path now supports API-level filters so Hermes can generate only the requested student scope:
+
+```text
+~/.local/bin/eshikshakosh-report --class 10
+~/.local/bin/eshikshakosh-report --class 10 --section 2
+~/.local/bin/eshikshakosh-report --class 11 --stream 2
+~/.local/bin/eshikshakosh-report --class 12 --section 1 --stream 3
+~/.local/bin/eshikshakosh-report --split-sheets
+```
+
+Stream mapping: Arts=`1`, Science=`2`, Commerce=`3`. For full-school output, `--split-sheets` writes class/section-wise sheets for Classes 9–10 and class/section/stream-wise sheets for Classes 11–12. Natural-language messaging requests should infer these choices and ask only for genuinely missing scope details.

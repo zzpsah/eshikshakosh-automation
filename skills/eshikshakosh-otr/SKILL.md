@@ -1,7 +1,7 @@
 ---
 name: eshikshakosh-otr
 description: Generate a private read-only e-ShikshaKosh OTR Excel report and return it to the requesting Telegram or WhatsApp chat.
-version: 2.3.0
+version: 2.4.0
 author: zzpsah, Hermes Agent
 license: MIT
 platforms: [linux]
@@ -29,6 +29,35 @@ If no school is supplied, ask for the school name. Accept school aliases such as
 If the school has a complete Bitwarden credential pair, use it automatically. If not, direct the user to the secure guided `/bw add` form to enter username/password; do not ask for the password in chat text.
 
 Export mode is user-controlled: `full` or `masked`, default **`full`**. Do not silently change the selected mode.
+
+## Report scope conversation
+
+Before generating a report, infer scope from the user's message. If scope is missing or ambiguous, ask only for the missing choices and show the available options.
+
+Supported scope:
+- Classes: 9, 10, 11, 12, or all.
+- Sections: 1, 2, or all.
+- Streams for Classes 11/12 only: Arts=1, Science=2, Commerce=3, or all.
+- Output layout for an all-student request: one full sheet or separate class/section/stream-wise sheets.
+
+Rules:
+- Class 9/10 never require a stream question.
+- If Class 11/12 is requested without a stream, ask whether Arts, Science, Commerce, or all streams are required unless the user clearly asked for all students in that class.
+- If the user asks for “all”, “sabhi”, or “full report” and does not specify layout, ask whether they want one full sheet or separate sheets.
+- If the user already provided class/section/stream clearly, do not ask again.
+- Natural-language examples such as “Class 11 Science”, “Class 10 Section 2”, or “sabhi class alag sheet me” should be converted to the launcher arguments below.
+
+Launcher mapping:
+```text
+full school, one sheet:        ~/.local/bin/eshikshakosh-report
+Class 10:                      ~/.local/bin/eshikshakosh-report --class 10
+Class 10 Section 2:            ~/.local/bin/eshikshakosh-report --class 10 --section 2
+Class 11 Science:              ~/.local/bin/eshikshakosh-report --class 11 --stream 2
+Class 12 Section 1 Commerce:   ~/.local/bin/eshikshakosh-report --class 12 --section 1 --stream 3
+all grouped sheets:            ~/.local/bin/eshikshakosh-report --split-sheets
+```
+
+Filtered requests are fetched at API level so only the requested student list is processed. `--split-sheets` fetches the full current list and writes grouped sheets: Class 9/10 by class+section, Class 11/12 by class+section+stream.
 
 ## Core behavior
 
@@ -113,7 +142,7 @@ Do not permanently save credentials unless the user explicitly requests credenti
 Default filename pattern:
 
 ```text
-Student_Details_<School>_<Session>.xlsx
+Student_Details_<School>_<Session>_<Scope>.xlsx
 ```
 
 The school portion must be filesystem-safe and should use the actual school name when available.

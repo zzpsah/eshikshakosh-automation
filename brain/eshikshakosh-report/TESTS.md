@@ -14,3 +14,10 @@ Not performed during this reconciliation:
 - no CAPTCHA/OTP interaction;
 - no student-data export;
 - no portal mutation.
+
+## Scoped report static verification — 2026-10-03
+
+- `bash -n` passes for install, runner and Bitwarden wrapper scripts.
+- Python compilation passes for root and private report scripts.
+- Private report `--help` exposes class/section/stream/split-sheet options.
+- Generated workbooks remain ignored by Git.

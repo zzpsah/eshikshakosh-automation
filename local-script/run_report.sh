@@ -5,6 +5,17 @@ REPO="${HOME}/projects/eshikshakosh-automation"
 PY="${REPO}/.venv/bin/python"
 APP="${REPO}/local-script/esk_otr_api.py"
 EXPORT_MODE="${ESHIKSHAKOSH_EXPORT_MODE:-full}"
+
+CLASS_FILTER="${ESHIKSHAKOSH_CLASS:-}"
+SECTION_FILTER="${ESHIKSHAKOSH_SECTION:-}"
+STREAM_FILTER="${ESHIKSHAKOSH_STREAM:-}"
+SPLIT_SHEETS="${ESHIKSHAKOSH_SPLIT_SHEETS:-0}"
+
+extra_args=()
+[[ -n "$CLASS_FILTER" ]] && extra_args+=(--class "$CLASS_FILTER")
+[[ -n "$SECTION_FILTER" ]] && extra_args+=(--section "$SECTION_FILTER")
+[[ -n "$STREAM_FILTER" ]] && extra_args+=(--stream "$STREAM_FILTER")
+[[ "$SPLIT_SHEETS" == "1" ]] && extra_args+=(--split-sheets)
 if [[ "$EXPORT_MODE" != "full" && "$EXPORT_MODE" != "masked" ]]; then
   echo "ERROR: ESHIKSHAKOSH_EXPORT_MODE must be full or masked" >&2
   exit 2
@@ -56,7 +67,8 @@ find "$REPO" -maxdepth 1 -type f -name 'Student_Details_*.xlsx' -printf '%f\n' |
   --udise "$ESHIKSHAKOSH_USERNAME" \
   --password "$ESHIKSHAKOSH_PASSWORD" \
   --year "$YEAR" \
-  --export-mode "$EXPORT_MODE"
+  --export-mode "$EXPORT_MODE" \
+  "${extra_args[@]}"
 
 find "$REPO" -maxdepth 1 -type f -name 'Student_Details_*.xlsx' -printf '%f\n' | sort > "$after"
 

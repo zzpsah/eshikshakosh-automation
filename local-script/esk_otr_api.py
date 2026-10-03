@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Eshikshakosh OTR — Local report generator (API-based).
+Eshikshakosh OTR — Local report generator (API-based) .
 
 Login via Playwright → call viewStudentList with correct params →
 export Excel with OTR, bank, Aadhaar data.
+
+Supports --class, --section, --stream filters and optional split-sheet output.
 """
 
 import argparse
@@ -64,6 +66,7 @@ def decode_jwt(token: str) -> dict:
     except Exception:
         return {}
 
+
 def build_session(verify_ssl=False):
     s = requests.Session()
     s.verify = verify_ssl
@@ -74,6 +77,7 @@ def build_session(verify_ssl=False):
     s.mount("https://", adapter)
     s.mount("http://", adapter)
     return s
+
 
 def build_headers(token: str, access_token: str) -> dict:
     return {
@@ -134,7 +138,6 @@ async def login_playwright(uid: str, pwd: str) -> dict:
         except Exception as e:
             log.warning("Auto-captcha solve failed: %s", e)
             log.info("Please solve the captcha manually in the browser window.")
-            # Prompt user to enter captcha manually
             user_captcha = input("Enter captcha answer: ").strip()
             if user_captcha:
                 await page.fill("input[placeholder='Enter User Captcha']", user_captcha)
@@ -158,7 +161,8 @@ async def login_playwright(uid: str, pwd: str) -> dict:
 
 def fetch_student_list(session, headers, school_id, school_enc_id,
                        district_id, block_id, cluster_id,
-                       academic_year, offset=0, limit=100):
+                       academic_year, offset=0, limit=100,
+                       class_id="", stream="", section=""):
     payload = {
         "offset": str(offset),
         "limit": str(limit),
@@ -169,10 +173,10 @@ def fetch_student_list(session, headers, school_id, school_enc_id,
         "schoolEncId": school_enc_id,
         "studentCode": "",
         "admissionNo": "",
-        "classId": "",
-        "stream": "",
+        "classId": str(class_id) if class_id else "",
+        "stream": str(stream) if stream else "",
         "group": "",
-        "section": "",
+        "section": str(section) if section else "",
     }
     res = session.post(LIST_URL, headers=headers, json=payload,
                        timeout=35, verify=False)
@@ -258,7 +262,9 @@ def resolve_bank_name(ifsc: str) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
-async def main_async(udise, password, academic_year, output, verify_ssl, export_mode="full"):
+async def main_async(udise, password, academic_year, output, verify_ssl,
+                     export_mode="full", class_filter="", section_filter="",
+                     stream_filter="", split_sheets=False):
     log.info("Logging in as UDISE %s ...", udise)
     captured = await login_playwright(udise, password)
     token = captured.get("token")
@@ -292,6 +298,17 @@ async def main_async(udise, password, academic_year, output, verify_ssl, export_
     headers = build_headers(token, access_token)
     session = build_session(verify_ssl)
 
+    # Build filter description for logging
+    filters = []
+    if class_filter:
+        filters.append(f"Class={class_filter}")
+    if section_filter:
+        filters.append(f"Section={section_filter}")
+    if stream_filter:
+        filters.append(f"Stream={stream_filter}")
+    filter_desc = ", ".join(filters) if filters else "None (all students)"
+    log.info("Filters: %s", filter_desc)
+
     # Fetch student list
     log.info("Fetching student list from viewStudentList...")
     all_students = []
@@ -303,7 +320,8 @@ async def main_async(udise, password, academic_year, output, verify_ssl, export_
         batch, total = fetch_student_list(
             session, headers, school_id, school_enc_id,
             district_id, block_id, cluster_id,
-            academic_year, offset, limit)
+            academic_year, offset, limit,
+            class_id=class_filter, stream=stream_filter, section=section_filter)
         if not batch:
             break
         all_students.extend(batch)
@@ -315,7 +333,7 @@ async def main_async(udise, password, academic_year, output, verify_ssl, export_
         offset += limit
 
     if not all_students:
-        log.error("No students found")
+        log.error("No students found (filters may be too restrictive)")
         sys.exit(1)
 
     school_name = all_students[0].get("schoolName") or f"School_{udise}"
@@ -423,13 +441,20 @@ async def main_async(udise, password, academic_year, output, verify_ssl, export_
     if not output:
         school_part = safe_filename_component(school_name, fallback=str(udise))
         session_part = safe_filename_component(academic_year, fallback="Session")
-        output = f"Student_Details_{school_part}_{session_part}.xlsx"
+        # Add filter info to filename
+        filter_parts = []
+        if class_filter:
+            filter_parts.append(f"Class{class_filter}")
+        if section_filter:
+            filter_parts.append(f"Sec{section_filter}")
+        if stream_filter:
+            filter_parts.append(f"Stream{stream_filter}")
+        filter_suffix = "_".join(filter_parts) if filter_parts else "All"
+        output = f"Student_Details_{school_part}_{session_part}_{filter_suffix}.xlsx"
 
     columns = list(records[0].keys())
     wb = Workbook()
-    ws = wb.active
-    ws.title = "Student OTR Roster"
-    ws.append(columns)
+    default_ws = wb.active
 
     hfill = PatternFill(start_color="F2F4F7", end_color="F2F4F7", fill_type="solid")
     hfont = Font(name="Calibri", size=10, bold=True, color="1F2937")
@@ -440,13 +465,6 @@ async def main_async(udise, password, academic_year, output, verify_ssl, export_
                     bottom=Side(style="thin", color="D1D5DB"))
     center = Alignment(horizontal="center", vertical="center")
     left = Alignment(horizontal="left", vertical="center")
-
-    ws.row_dimensions[1].height = 25
-    for ci, cell in enumerate(ws[1], 1):
-        cell.fill = hfill
-        cell.font = hfont
-        cell.alignment = center
-        cell.border = border
 
     TEXT_COLS = ["Student Code", "Roll No", "OTR Number", "Aadhaar Number",
                  "Bank Account No", "IFSC Code", "Mobile Number",
@@ -459,26 +477,56 @@ async def main_async(udise, password, academic_year, output, verify_ssl, export_
                    "CWSN", "Profile Updated", "UDISE", "Academic Year"]
     center_idx = [columns.index(c) + 1 for c in CENTER_COLS if c in columns]
 
-    for ri, rec in enumerate(records, 2):
-        ws.row_dimensions[ri].height = 20
-        ws.append([rec[c] for c in columns])
-        for ci in range(1, len(columns) + 1):
-            cell = ws.cell(row=ri, column=ci)
-            cell.font = cfont
+    def write_sheet(ws, sheet_records):
+        ws.append(columns)
+        ws.row_dimensions[1].height = 25
+        for cell in ws[1]:
+            cell.fill = hfill
+            cell.font = hfont
+            cell.alignment = center
             cell.border = border
-            if ci in text_idx:
-                cell.number_format = "@"
-                if cell.value is not None:
-                    cell.value = str(cell.value).strip()
-            cell.alignment = center if ci in center_idx else left
+        for ri, rec in enumerate(sheet_records, 2):
+            ws.row_dimensions[ri].height = 20
+            ws.append([rec[c] for c in columns])
+            for ci in range(1, len(columns) + 1):
+                cell = ws.cell(row=ri, column=ci)
+                cell.font = cfont
+                cell.border = border
+                if ci in text_idx:
+                    cell.number_format = "@"
+                    if cell.value is not None:
+                        cell.value = str(cell.value).strip()
+                cell.alignment = center if ci in center_idx else left
+        for col in ws.columns:
+            letter = get_column_letter(col[0].column)
+            ws.column_dimensions[letter].width = min(max(max(len(str(c.value or "")) for c in col) + 4, 13), 42)
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
 
-    for col in ws.columns:
-        letter = get_column_letter(col[0].column)
-        ws.column_dimensions[letter].width = max(
-            max(len(str(c.value or "")) for c in col) + 4, 13)
+    if split_sheets and not (class_filter or section_filter or stream_filter):
+        groups = {}
+        for rec in records:
+            cls = str(rec.get("Class", "")).replace("Class ", "").strip() or "Unknown"
+            sec = str(rec.get("Section", "")).strip() or "All"
+            stream_name = str(rec.get("Stream", "")).strip() or "N-A"
+            if cls in ("11", "12") and stream_name not in ("N/A", "N-A", ""):
+                key = (cls, sec, stream_name)
+                title = f"C{cls}-S{sec}-{stream_name}"
+            else:
+                key = (cls, sec, "")
+                title = f"C{cls}-S{sec}"
+            groups.setdefault((key, title), []).append(rec)
+        first = True
+        for (_, title), group_records in sorted(groups.items(), key=lambda x: x[0][0]):
+            safe_title = title[:31]
+            ws = default_ws if first else wb.create_sheet()
+            first = False
+            ws.title = safe_title
+            write_sheet(ws, group_records)
+    else:
+        default_ws.title = "Student OTR Roster"
+        write_sheet(default_ws, records)
 
-    ws.freeze_panes = "A2"
-    ws.auto_filter.ref = ws.dimensions
     wb.save(output)
     log.info("Saved: %s", output)
 
@@ -491,6 +539,7 @@ async def main_async(udise, password, academic_year, output, verify_ssl, export_
     print(f"\n{'='*60}")
     print(f"  Report: {output}")
     print(f"  Export Mode: {export_mode.upper()}")
+    print(f"  Filters: {filter_desc}")
     print(f"  Total Students: {len(records)}")
     print(f"  OTR Registered: {reg}")
     print(f"  OTR Pending:    {pend}")
@@ -501,12 +550,13 @@ async def main_async(udise, password, academic_year, output, verify_ssl, export_
 
 
 def main():
+    import os
     parser = argparse.ArgumentParser(
-        description="Eshikshakosh OTR Report Generator (local)")
-    parser.add_argument("--udise", "-u", required=True,
-                        help="Portal User ID / School UDISE")
+        description="Eshikshakosh OTR Report Generator (local) ")
+    parser.add_argument("--udise", "-u", default=None,
+                        help="Portal User ID / School UDISE (or set ESHIKSHAKOSH_USERNAME env var)")
     parser.add_argument("--password", "-p", default=None,
-                        help="Portal password")
+                        help="Portal password (or set ESHIKSHAKOSH_PASSWORD env var)")
     parser.add_argument("--year", "-y", default=current_academic_year(),
                         help="Academic year (default: current Apr-Mar session)")
     parser.add_argument("--output", "-o", default=None,
@@ -515,15 +565,36 @@ def main():
                         help="Enable SSL verification")
     parser.add_argument("--export-mode", choices=["full", "masked"], default="full",
                         help="Export privacy mode (default: full)")
+    # NEW: Filter arguments
+    parser.add_argument("--class", "-c", dest="class_filter", default="",
+                        help="Filter by class (e.g., 11, 12). Empty = all classes")
+    parser.add_argument("--section", "-s", default="",
+                        help="Filter by section (e.g., 1, 2). Empty = all sections")
+    parser.add_argument("--stream", "-st", default="",
+                        help="Filter by stream (1=Arts, 2=Science, 3=Commerce). Empty = all streams")
+    parser.add_argument("--split-sheets", action="store_true",
+                        help="Write all fetched students into class/section/stream-wise Excel sheets")
     args = parser.parse_args()
 
+    # Fallback to env vars if CLI args not provided
+    if not args.udise:
+        args.udise = os.environ.get("ESHIKSHAKOSH_USERNAME", "")
+    if not args.password:
+        args.password = os.environ.get("ESHIKSHAKOSH_PASSWORD", "")
+
+    if not args.udise:
+        parser.error("--udise is required (or set ESHIKSHAKOSH_USERNAME env var)")
     if not args.password:
         import getpass
         args.password = getpass.getpass("Password: ")
 
     asyncio.get_event_loop().run_until_complete(
         main_async(args.udise, args.password, args.year,
-                   args.output, args.verify_ssl, args.export_mode))
+                   args.output, args.verify_ssl, args.export_mode,
+                   class_filter=args.class_filter,
+                   section_filter=args.section,
+                   stream_filter=args.stream,
+                   split_sheets=args.split_sheets))
 
 
 if __name__ == "__main__":

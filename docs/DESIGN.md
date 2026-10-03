@@ -29,3 +29,7 @@ Current OTR-specific naming remains until the code/runner/skill are updated toge
 
 ## Privacy
 The attachment is primary output. Chat text should contain only safe summary fields such as school, session, student count, OTR registered/pending, and generation time.
+
+## Scope conversation
+
+Messaging UX should accept natural-language scope such as `Class 11 Science`, `Class 10 Section 2`, or `sabhi class alag sheet me`. Classes 9–10 do not ask for stream. Classes 11–12 ask for stream only when the request is ambiguous. A full-school request asks one-sheet vs separate-sheets only when layout was not already stated.

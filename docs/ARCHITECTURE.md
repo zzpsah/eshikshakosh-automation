@@ -39,3 +39,7 @@ Academic session defaults automatically using an April-March school-year boundar
 
 ## Hermes routing rule
 Hermes must use the verified report runner for student-report requests. It must not fall back to unrelated teacher-data extraction or ad-hoc browser selectors when the runner exists.
+
+## Scoped extraction
+
+Class, section and stream filters are passed through the launcher into the existing read-only student-list API request rather than filtering sensitive rows only after a full export. Split-sheet mode intentionally fetches the authorized full list once and groups workbook sheets locally.

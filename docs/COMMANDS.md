@@ -53,3 +53,15 @@ Examples:
 ```
 
 Default export mode is `full`. If no school is supplied, the command asks for school name. Missing Bitwarden credentials route to `/bw add` secure form.
+
+## Scoped report examples
+
+```bash
+eshikshakosh-report --class 10
+eshikshakosh-report --class 10 --section 2
+eshikshakosh-report --class 11 --stream 2
+eshikshakosh-report --class 12 --section 1 --stream 3
+eshikshakosh-report --split-sheets
+```
+
+Optional `--mode full|masked` and `--year YYYY-YY` may be combined with these flags.

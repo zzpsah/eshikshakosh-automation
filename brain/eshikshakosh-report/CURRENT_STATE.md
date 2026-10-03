@@ -20,3 +20,10 @@ Last verified: 2026-10-02.
 - Known school aliases resolve to stored Bitwarden credentials when the pair exists.
 - Missing credentials route to secure `/bw add` rather than password-in-chat.
 - Export modes: `full` / `masked`; default **`full`**.
+
+## Scoped reports — 2026-10-03
+
+- Private launcher supports `--class`, `--section`, `--stream`, `--split-sheets`, `--mode`, and `--year`.
+- Filtered requests are applied at the existing read-only student-list API request.
+- Split-sheet output groups Classes 9–10 by class+section and Classes 11–12 by class+section+stream.
+- Skill v2.4.0 documents natural-language scope conversation.

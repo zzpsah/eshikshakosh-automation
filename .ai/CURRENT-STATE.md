@@ -29,3 +29,7 @@ Hermes messaging exposed internal prompt/tool-routing text in a user-visible rep
 - Known aliases can resolve Bitwarden credentials automatically.
 - Missing credentials use secure `/bw add` flow.
 - Export mode is user-controlled, default `full`.
+
+## Scoped report update — 2026-10-03
+
+Class/section/stream filters and split-sheet output are implemented in the private VPS report path. Messaging skill v2.4.0 documents natural-language scope selection. Remaining proof: one real filtered run and WhatsApp same-private-chat attachment delivery.

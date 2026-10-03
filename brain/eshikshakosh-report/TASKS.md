@@ -14,3 +14,12 @@
 ## Future
 - [ ] Only add teacher-report automation after observing and documenting the real portal endpoints/response schema.
 - [ ] Consider a coordinated Git-history scrub only if historical sensitive workbook removal is required; do not force-push casually.
+
+## Scoped reports
+- [x] Add class filter.
+- [x] Add section filter.
+- [x] Add stream filter for Classes 11–12.
+- [x] Add split-sheet workbook output.
+- [x] Extend launcher/skill syntax for scoped reports.
+- [ ] Verify one real filtered report against current portal data.
+- [ ] Verify WhatsApp same-private-chat Excel attachment delivery.
