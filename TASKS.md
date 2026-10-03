@@ -9,11 +9,12 @@
 - [x] Auto-derive the academic session using Apr-Mar boundaries.
 - [x] Pin Hermes student-report execution to the verified local runner.
 - [x] Add DevOS/Vibe Coding baseline.
+- [x] Prove Telegram request -> report -> Excel attachment in the same private chat.
+- [x] Prove WhatsApp request -> report -> Excel attachment in the same private chat.
 
 ## Active
+- [ ] Run one real inbound WhatsApp natural-language regression after v2.5 skill synchronization; verify no redundant approval prompt and same-chat XLSX delivery.
 - [ ] Verify `~/.local/bin/eshikshakosh-report` after every relevant repo/skill update.
-- [ ] Prove Telegram request -> report -> Excel attachment in the same private chat.
-- [ ] Prove WhatsApp request -> report -> Excel attachment in the same private chat.
 - [ ] Rename report output to a generic `Student_Details_<School>_<Session>.xlsx` pattern.
 - [ ] Update runner file matching and skill documentation after filename rename.
 - [ ] Add a private school registry mapping school aliases to credential keys.

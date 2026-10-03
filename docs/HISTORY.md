@@ -27,3 +27,13 @@
 ## 2026-10-03 — Scoped reports and WhatsApp delivery verified
 
 Completed the scoped report update: class/section/stream API filters, split-sheet output, flag-based launcher, and skill v2.4.0. A real Class 10 masked run returned 34 students and passed workbook masking checks. The resulting Excel file was delivered successfully to the configured WhatsApp Home/Admin chat, closing the previous same-channel WhatsApp verification task.
+
+
+## 2026-10-03 — Natural-language messaging v2.5
+
+- Identified two simultaneously active Hermes e-ShikshaKosh skills; the older `eshikshakosh-report` v2.1.0 was still selected frequently.
+- Synchronized the legacy and current installed skills to v2.5 behavior.
+- Added Hindi/Hinglish natural-language intent handling and spelling-tolerant report phrasing.
+- Removed redundant approval/continue prompts for clear read-only report generation and same-private-chat delivery.
+- Local Hermes parsing regression passed without invoking report tools.
+- Repository update prepared for commit after local regression checks; real inbound natural-language WhatsApp regression remains a separate follow-up.

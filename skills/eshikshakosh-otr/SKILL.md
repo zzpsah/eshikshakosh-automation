@@ -1,7 +1,7 @@
 ---
 name: eshikshakosh-otr
 description: Generate a private read-only e-ShikshaKosh OTR Excel report and return it to the requesting Telegram or WhatsApp chat.
-version: 2.4.0
+version: 2.5.0
 author: zzpsah, Hermes Agent
 license: MIT
 platforms: [linux]
@@ -29,6 +29,30 @@ If no school is supplied, ask for the school name. Accept school aliases such as
 If the school has a complete Bitwarden credential pair, use it automatically. If not, direct the user to the secure guided `/bw add` form to enter username/password; do not ask for the password in chat text.
 
 Export mode is user-controlled: `full` or `masked`, default **`full`**. Do not silently change the selected mode.
+
+## Natural-language intent and approval behavior
+
+Treat ordinary WhatsApp/Telegram messages as valid report requests even when the user does not use a slash command. Understand common Hindi/Hinglish phrasing, spelling variation, and shorthand from context.
+
+Examples that should route directly to this skill:
+- `tetahali ka class 10 report bhejo`
+- `10th ke baccho ka excel chahiye`
+- `11 science ka report`
+- `section 2 ka student detail bhej do`
+- `sabhi class alag sheet me report bhejo`
+- `eshiksha ka report`, `eshikshakosh report`, or close spelling variants
+
+When the user's request already supplies enough information, execute it immediately. The original request is the approval for this read-only report generation and same-private-chat delivery.
+
+Do **not** ask `continue?`, `proceed?`, `confirm?`, or repeat an approval question for:
+- generating a read-only report;
+- using already-authorized stored credentials for a known school;
+- applying class/section/stream filters clearly stated by the user;
+- returning the generated XLSX to the same authorized private chat.
+
+Ask a follow-up only when a required fact is genuinely missing or ambiguous, such as an unknown school, unresolved Class 11/12 stream when the message does not imply all streams, or requester authorization for an unmasked report.
+
+Never interpret casual acknowledgement words such as `haan`, `ok`, `kar do`, `bhejo`, or `continue` as a new task when there is a pending report action; treat them as continuation of that action.
 
 ## Report scope conversation
 

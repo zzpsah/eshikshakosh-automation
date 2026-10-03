@@ -13,7 +13,6 @@
 - A messaging internal-trace echo issue was observed; a fresh session reset removed the obvious raw dump once, but the issue is not considered closed.
 
 ## Next
-- Prove same-channel file delivery.
 - Rename output to Student Details naming.
 - Add a private multi-school credential registry.
 - Continue hardening Hermes messaging output.
@@ -27,3 +26,10 @@ Never store credentials, secret values, tokens, cookies, OTPs, or private studen
 - Report filename pattern: `Student_Details_<School>_<Session>.xlsx` with a filesystem-safe school component.
 - Telegram same-private-chat Excel delivery is verified.
 - WhatsApp same-private-chat Excel delivery verified on 2026-10-03 using a real masked Class 10 report.
+
+
+## Messaging intent behavior
+- As of v2.5.0, normal Hindi/Hinglish report requests should route without requiring slash commands.
+- Do not ask `continue/proceed/confirm` after a clear authorized read-only report request.
+- Ask only for genuinely missing school/scope/authorization facts.
+- Keep both installed skill aliases synchronized until the legacy alias is deliberately retired.
