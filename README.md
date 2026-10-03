@@ -84,7 +84,7 @@ request -> identify school -> resolve authorized credentials
         -> send the .xlsx back in the same private channel
 ```
 
-Telegram end-to-end attachment delivery is verified. WhatsApp end-to-end attachment delivery is still pending verification.
+Telegram and WhatsApp same-private-chat attachment delivery are both verified. On 2026-10-03 a real masked Class 10 report (34 students) was generated and delivered successfully to the configured WhatsApp Home/Admin chat.
 
 ### Known Hermes issue
 

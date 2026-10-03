@@ -23,3 +23,7 @@
 - Removed a generated Student OTR workbook from the current Git tree while preserving the local ignored artifact.
 - Added project-specific `brain/eshikshakosh-report/` recovery/state documentation.
 - Local shell syntax, Python compile, CLI-help and `git diff --check` validation passed.
+
+## 2026-10-03 — Scoped reports and WhatsApp delivery verified
+
+Completed the scoped report update: class/section/stream API filters, split-sheet output, flag-based launcher, and skill v2.4.0. A real Class 10 masked run returned 34 students and passed workbook masking checks. The resulting Excel file was delivered successfully to the configured WhatsApp Home/Admin chat, closing the previous same-channel WhatsApp verification task.

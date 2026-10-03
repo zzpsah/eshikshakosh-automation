@@ -23,3 +23,7 @@
 - [x] Extend launcher/skill syntax for scoped reports.
 - [ ] Verify one real filtered report against current portal data.
 - [ ] Verify WhatsApp same-private-chat Excel attachment delivery.
+
+## Verified 2026-10-03
+- [x] Verify one real filtered report against current portal data.
+- [x] Verify WhatsApp same-private-chat Excel attachment delivery.

@@ -27,3 +27,13 @@ Last verified: 2026-10-02.
 - Filtered requests are applied at the existing read-only student-list API request.
 - Split-sheet output groups Classes 9–10 by class+section and Classes 11–12 by class+section+stream.
 - Skill v2.4.0 documents natural-language scope conversation.
+
+## Real scoped run + WhatsApp delivery — 2026-10-03
+
+- Real read-only Class 10 masked run succeeded against the current portal session.
+- API-level Class 10 filter returned 34 students.
+- Workbook: one sheet, 34 data rows.
+- Summary: 17 OTR registered, 17 OTR pending, 34 Aadhaar present, 34 bank accounts, 34 mother names.
+- Masking verification passed for every non-empty Aadhaar, bank-account and mobile value in the workbook.
+- WhatsApp Home/Admin document delivery succeeded using the generated masked workbook.
+- Telegram and WhatsApp same-private-chat attachment delivery are now both verified.

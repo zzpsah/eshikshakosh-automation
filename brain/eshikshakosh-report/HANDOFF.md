@@ -17,3 +17,7 @@ python3 -m py_compile eshikshakosh_otr.py local-script/esk_otr_api.py
 .venv/bin/python local-script/esk_otr_api.py --help
 git diff --check
 ```
+
+## Current verified messaging/report baseline
+
+Scoped natural-language reports are live. Class/section/stream filtering, split sheets, Bitwarden-backed known-school execution, Telegram attachment delivery and WhatsApp Home/Admin attachment delivery are verified. Use masked mode for routine delivery tests. Do not re-open WhatsApp delivery as pending unless a later regression is observed.

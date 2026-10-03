@@ -9,7 +9,7 @@
 - Verified run summary: 220 students; 2 OTR registered; 218 pending; 219 Aadhaar values present; 220 bank accounts; 220 mother names.
 - Session defaults automatically using Apr-Mar boundaries.
 - Hermes skill is pinned to the verified local runner.
-- Telegram/WhatsApp attachment delivery remains pending end-to-end verification.
+- Telegram and WhatsApp same-private-chat Excel delivery are verified.
 - A messaging internal-trace echo issue was observed; a fresh session reset removed the obvious raw dump once, but the issue is not considered closed.
 
 ## Next
@@ -26,4 +26,4 @@ Never store credentials, secret values, tokens, cookies, OTPs, or private studen
 
 - Report filename pattern: `Student_Details_<School>_<Session>.xlsx` with a filesystem-safe school component.
 - Telegram same-private-chat Excel delivery is verified.
-- WhatsApp same-channel Excel delivery remains pending verification.
+- WhatsApp same-private-chat Excel delivery verified on 2026-10-03 using a real masked Class 10 report.

@@ -10,16 +10,14 @@ Last documented: 2026-09-27
 - Verified summary from that run: 220 students; 2 OTR registered; 218 pending; 219 Aadhaar values present; 220 bank accounts; 220 mother names.
 - Academic session defaults automatically using an April-March boundary.
 - Hermes student-report execution is pinned to `~/.local/bin/eshikshakosh-report`.
-- Same-channel Telegram/WhatsApp attachment delivery still needs end-to-end verification.
+- Telegram and WhatsApp same-private-chat Excel attachment delivery are verified.
 
 ## Known issue
 Hermes messaging exposed internal prompt/tool-routing text in a user-visible reply. Request-dump inspection showed the strings existed in normal internal instructions/tool metadata. A fresh-session reset removed the obvious raw dump once, but the issue is not considered closed.
 
 ## Next
-- Prove Telegram file delivery.
-- Prove WhatsApp file delivery.
-- Rename output to Student Details naming.
-- Add private multi-school credential mapping.
+- Keep scoped report behavior regression-tested after portal/API changes.
+- Add additional schools only through the secure credential mapping flow.
 - Continue Hermes output hardening.
 
 ## Messaging report command — 2026-10-02
