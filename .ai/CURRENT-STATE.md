@@ -42,3 +42,8 @@ Class/section/stream filters and split-sheet output are implemented in the priva
 - Follow-up questions are limited to genuinely missing school/scope/authorization information.
 - Local Hermes parser test passed for Class 10, Class 11 Science, and all-class split-sheet phrasing.
 - Real inbound WhatsApp natural-language regression test remains pending.
+
+## Remote access handoff
+- Canonical access instructions: `docs/REMOTE-ACCESS.md`.
+- New AI chats must discover the current Desktop Commander device with `list_devices`, choose the online `oracle-server`, and verify it with `ping` before touching live runtime state.
+- GitHub access alone does not provide Oracle VPS control.

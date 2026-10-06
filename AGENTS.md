@@ -25,3 +25,7 @@ READ -> UNDERSTAND -> PLAN -> IMPLEMENT -> TEST -> REVIEW -> FIX -> COMMIT -> UP
 - Do not send unmasked reports to unauthorized users or groups.
 - Do not replace the verified local runner with ad-hoc browser/teacher-data scraping.
 - No production deployment or consequential portal/data mutation without explicit user approval.
+
+## Remote access / Desktop Commander
+
+For authorized Oracle VPS access, read [`docs/REMOTE-ACCESS.md`](docs/REMOTE-ACCESS.md). A new AI chat must use Desktop Commander `list_devices`, select the online `oracle-server`, ping it, and only then operate on the live server. Do not confuse GitHub access with VPS/runtime access.
