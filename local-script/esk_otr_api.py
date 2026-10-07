@@ -101,16 +101,39 @@ def build_headers(token: str, access_token: str) -> dict:
 async def login_playwright(uid: str, pwd: str) -> dict:
     captured = {}
 
+    def find_tokens(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                key_l = str(key).lower().replace("-", "_")
+                if key_l in {"token", "access_token", "accesstoken", "auth_token", "jwt"} and isinstance(item, str) and len(item) > 20:
+                    yield key_l, item.replace("Bearer ", "").strip()
+                yield from find_tokens(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from find_tokens(item)
+
     async def on_response(resp):
-        if "auth/login" in resp.url and resp.status == 200:
-            try:
-                data = await resp.json()
-                captured["login_response"] = data
-                if data.get("token"):
-                    captured["token"] = data["token"]
-                    captured["access_token"] = data.get("access_token", data["token"])
-            except Exception:
-                pass
+        if "/auth/login" not in resp.url.lower():
+            return
+        captured["login_http_status"] = resp.status
+        try:
+            data = await resp.json()
+        except Exception:
+            captured["login_error"] = f"eShikshaKosh login returned HTTP {resp.status}"
+            return
+
+        if isinstance(data, dict):
+            captured["login_response"] = data
+            for key, value in find_tokens(data):
+                captured.setdefault("token", value)
+                if key in {"access_token", "accesstoken"}:
+                    captured["access_token"] = value
+
+            if captured.get("token"):
+                log.info("eShikshaKosh login accepted (HTTP %s)", resp.status)
+            else:
+                message = str(data.get("msg") or data.get("message") or "").strip()
+                captured["login_error"] = message or f"eShikshaKosh login rejected (HTTP {resp.status})"
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True,
@@ -127,30 +150,48 @@ async def login_playwright(uid: str, pwd: str) -> dict:
         await page.fill("input[formcontrolname='userId']", uid)
         await page.fill("input[formcontrolname='password']", pwd)
 
-        # Try to solve captcha automatically (math expression)
+        # Solve the portal's client-side multiplication/addition/subtraction CAPTCHA.
         captcha_text = await page.inner_text(".capcha__head")
-        log.info("Captcha shown: %s", captcha_text)
         try:
-            expr = captcha_text.split(":")[-1].strip()
-            captcha_answer = str(int(eval(expr)))
-            log.info("Auto-solved captcha: %s → %s", expr, captcha_answer)
+            import re
+            match = re.search(r"(\d+)\s*([+\-*])\s*(\d+)", captcha_text)
+            if not match:
+                raise ValueError("captcha expression not recognised")
+            left, op, right = int(match.group(1)), match.group(2), int(match.group(3))
+            answer = left + right if op == "+" else left - right if op == "-" else left * right
+            captcha_answer = str(answer)
+            log.info("Auto-solved captcha")
             await page.fill("input[placeholder='Enter User Captcha']", captcha_answer)
         except Exception as e:
             log.warning("Auto-captcha solve failed: %s", e)
-            log.info("Please solve the captcha manually in the browser window.")
             user_captcha = input("Enter captcha answer: ").strip()
             if user_captcha:
                 await page.fill("input[placeholder='Enter User Captcha']", user_captcha)
             else:
-                log.error("No captcha entered — aborting login.")
                 await browser.close()
-                return {}
+                return {"login_error": "No CAPTCHA answer was provided."}
+
         await page.click("input.submit__btn")
 
-        for _ in range(120):
-            if captured.get("token"):
+        # The live portal returns the decisive result from /auth/login.
+        for _ in range(80):
+            if captured.get("token") or captured.get("login_error") or captured.get("login_http_status"):
                 break
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.25)
+
+        # On success Angular stores the issued values in sessionStorage.
+        if not captured.get("token") and not captured.get("login_error"):
+            try:
+                storage = await page.evaluate("Object.fromEntries(Object.entries(sessionStorage))")
+                jwt_token = str(storage.get("jwtToken") or "").strip()
+                access_token = str(storage.get("access_token") or "").strip()
+                if jwt_token:
+                    captured["token"] = jwt_token
+                    captured["access_token"] = access_token or jwt_token
+            except Exception as exc:
+                log.warning("Post-login session inspection failed: %s", exc)
+
+        captured["final_url"] = page.url
         await browser.close()
 
     return captured
@@ -270,8 +311,13 @@ async def main_async(udise, password, academic_year, output, verify_ssl,
     token = captured.get("token")
     access_token = captured.get("access_token", token)
     if not token:
-        log.error("Login failed — no token captured")
-        sys.exit(1)
+        detail = str(captured.get("login_error") or "No login token was returned.").strip()
+        status = captured.get("login_http_status")
+        if "invalid userid/password" in detail.lower():
+            detail = "eShikshaKosh rejected the saved user ID/password. Reconnect eShikshaKosh and enter the current portal password."
+        if status:
+            raise RuntimeError(f"{detail} (HTTP {status})")
+        raise RuntimeError(detail)
 
     jwt = decode_jwt(token)
     school_id = jwt.get("sub")
@@ -588,13 +634,17 @@ def main():
         import getpass
         args.password = getpass.getpass("Password: ")
 
-    asyncio.get_event_loop().run_until_complete(
-        main_async(args.udise, args.password, args.year,
-                   args.output, args.verify_ssl, args.export_mode,
-                   class_filter=args.class_filter,
-                   section_filter=args.section,
-                   stream_filter=args.stream,
-                   split_sheets=args.split_sheets))
+    try:
+        asyncio.get_event_loop().run_until_complete(
+            main_async(args.udise, args.password, args.year,
+                       args.output, args.verify_ssl, args.export_mode,
+                       class_filter=args.class_filter,
+                       section_filter=args.section,
+                       stream_filter=args.stream,
+                       split_sheets=args.split_sheets))
+    except RuntimeError as exc:
+        log.error("%s", exc)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

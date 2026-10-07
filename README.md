@@ -154,3 +154,24 @@ The private VPS report path now supports API-level filters so Hermes can generat
 ```
 
 Stream mapping: Arts=`1`, Science=`2`, Commerce=`3`. For full-school output, `--split-sheets` writes class/section-wise sheets for Classes 9–10 and class/section/stream-wise sheets for Classes 11–12. Natural-language messaging requests should infer these choices and ask only for genuinely missing scope details.
+
+## Live login contract — 7 October 2026
+
+The private VPS exporter in `local-script/esk_otr_api.py` follows the current portal login contract:
+
+- frontend: `https://eshikshakosh.bihar.gov.in`
+- login API: `POST https://eshikshakosh.bihar.gov.in:8443/auth/login`
+- the Angular frontend AES-encrypts the complete login form before POSTing it;
+- school login uses user type `2`;
+- CAPTCHA is the portal's client-side arithmetic challenge;
+- successful login returns `token` / `access_token` and the frontend stores them in `sessionStorage`.
+
+The exporter now watches the exact `/auth/login` response instead of treating missing storage/cookies as the primary error. Portal rejection messages are propagated cleanly to callers.
+
+Verified diagnostic on 7 October 2026:
+- the live encrypted login request reached `/auth/login`;
+- CAPTCHA submission was accepted by the client flow;
+- the then-current temporary credential pair was rejected by the official portal with HTTP 422 (`Invalid userId/Password.`);
+- this is a credential rejection, not a token-capture failure.
+
+When this occurs, reconnect/update the eShikshaKosh password. Do not retry the same rejected pair in a loop.
