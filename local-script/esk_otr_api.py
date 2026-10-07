@@ -141,7 +141,6 @@ async def login_playwright(uid: str, pwd: str) -> dict:
                   "--disable-dev-shm-usage"])
         context = await browser.new_context(ignore_https_errors=True)
         page = await context.new_page()
-        page.on("response", on_response)
 
         await page.goto("https://eshikshakosh.bihar.gov.in",
                         wait_until="networkidle", timeout=35000)
@@ -171,10 +170,23 @@ async def login_playwright(uid: str, pwd: str) -> dict:
                 await browser.close()
                 return {"login_error": "No CAPTCHA answer was provided."}
 
-        await page.click("input.submit__btn")
+        # Wait for the actual login response instead of registering an async
+        # response listener. Playwright can otherwise leave a response-handler
+        # task pending when the browser closes, producing the misleading
+        # "Task exception was never retrieved" error in the report fetch job.
+        try:
+            async with page.expect_response(
+                lambda resp: "/auth/login" in resp.url.lower(),
+                timeout=25000,
+            ) as login_response_info:
+                await page.click("input.submit__btn")
+            login_response = await login_response_info.value
+            await on_response(login_response)
+        except Exception as exc:
+            captured.setdefault("login_error", f"eShikshaKosh login request did not complete: {type(exc).__name__}")
 
         # The live portal returns the decisive result from /auth/login.
-        for _ in range(80):
+        for _ in range(20):
             if captured.get("token") or captured.get("login_error") or captured.get("login_http_status"):
                 break
             await asyncio.sleep(0.25)
