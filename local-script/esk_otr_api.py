@@ -299,6 +299,55 @@ def resolve_bank_name(ifsc: str) -> str:
     return IFSC_PREFIX_MAP.get(code[:4], code[:4])
 
 
+async def verify_only_async(udise, password, academic_year, verify_ssl=False):
+    """Verify one live eShikshaKosh login and return non-secret school identity."""
+    captured = await login_playwright(udise, password)
+    token = captured.get("token")
+    access_token = captured.get("access_token", token)
+    if not token:
+        detail = str(captured.get("login_error") or "No login token was returned.").strip()
+        status = captured.get("login_http_status")
+        if "invalid userid/password" in detail.lower():
+            detail = "eShikshaKosh rejected the user ID/password."
+        if status:
+            raise RuntimeError(f"{detail} (HTTP {status})")
+        raise RuntimeError(detail)
+
+    jwt = decode_jwt(token)
+    school_id = jwt.get("sub")
+    school_enc_id = jwt.get("schoolEncId") or jwt.get("school") or ""
+    district_id = jwt.get("district") or 16
+    block_id = 219
+    cluster_id = 2471
+    user_profile = captured.get("login_response", {}).get("userProfile", "")
+    if user_profile:
+        try:
+            profile = json.loads(user_profile)
+            district_id = profile.get("district", district_id)
+            block_id = profile.get("block", block_id)
+            cluster_id = profile.get("cluster", cluster_id)
+        except Exception:
+            pass
+
+    headers = build_headers(token, access_token)
+    session = build_session(verify_ssl)
+    batch, total = fetch_student_list(
+        session, headers, school_id, school_enc_id,
+        district_id, block_id, cluster_id,
+        academic_year, 0, 1,
+    )
+    school_name = ""
+    if batch:
+        school_name = str(batch[0].get("schoolName") or "").strip()
+    return {
+        "verified": True,
+        "udise": str(udise),
+        "school_id": str(school_id or ""),
+        "school_name": school_name or ("School " + str(udise)),
+        "student_count": int(total or len(batch)),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -620,6 +669,8 @@ def main():
                         help="Filter by stream (1=Arts, 2=Science, 3=Commerce). Empty = all streams")
     parser.add_argument("--split-sheets", action="store_true",
                         help="Write all fetched students into class/section/stream-wise Excel sheets")
+    parser.add_argument("--verify-only", action="store_true",
+                        help="Verify login and print non-secret school identity only")
     args = parser.parse_args()
 
     # Fallback to env vars if CLI args not provided
@@ -635,13 +686,19 @@ def main():
         args.password = getpass.getpass("Password: ")
 
     try:
-        asyncio.get_event_loop().run_until_complete(
-            main_async(args.udise, args.password, args.year,
-                       args.output, args.verify_ssl, args.export_mode,
-                       class_filter=args.class_filter,
-                       section_filter=args.section,
-                       stream_filter=args.stream,
-                       split_sheets=args.split_sheets))
+        if args.verify_only:
+            result = asyncio.get_event_loop().run_until_complete(
+                verify_only_async(args.udise, args.password, args.year, args.verify_ssl)
+            )
+            print("VERIFY_OK=" + json.dumps(result, ensure_ascii=False))
+        else:
+            asyncio.get_event_loop().run_until_complete(
+                main_async(args.udise, args.password, args.year,
+                           args.output, args.verify_ssl, args.export_mode,
+                           class_filter=args.class_filter,
+                           section_filter=args.section,
+                           stream_filter=args.stream,
+                           split_sheets=args.split_sheets))
     except RuntimeError as exc:
         log.error("%s", exc)
         raise SystemExit(1)

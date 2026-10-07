@@ -175,3 +175,14 @@ Verified diagnostic on 7 October 2026:
 - this is a credential rejection, not a token-capture failure.
 
 When this occurs, reconnect/update the eShikshaKosh password. Do not retry the same rejected pair in a loop.
+
+## Verify-only / one-use integration — 8 October 2026
+
+The maintained exporter now supports --verify-only.
+
+This mode performs the real portal login and a minimal student-list read, then returns only non-secret identity metadata (verified flag, UDISE, school ID/name and student count). The UDISE control plane uses it before showing eShikshaKosh as connected.
+
+For live EP integration:
+- credentials are passed to the exporter through environment variables rather than CLI arguments;
+- the UDISE app binds the temporary credential record to the active UDISE session;
+- after a successful source export, the password is discarded and the workbook becomes the EP source.
