@@ -163,10 +163,26 @@ async def login_playwright(uid: str, pwd: str) -> dict:
 
         if isinstance(data, dict):
             captured["login_response"] = data
-            for key, value in find_tokens(data):
-                captured.setdefault("token", value)
-                if key in {"access_token", "accesstoken"}:
-                    captured["access_token"] = value
+
+            # The portal returns both token (JWT) and access_token (short token).
+            # Prefer the JWT for authenticated API calls.
+            direct_token = data.get("token")
+            direct_access = data.get("access_token") or data.get("accesstoken")
+            if isinstance(direct_token, str) and len(direct_token) > 20:
+                captured["token"] = direct_token.replace("Bearer ", "").strip()
+            if isinstance(direct_access, str) and len(direct_access) > 20:
+                captured["access_token"] = direct_access.replace("Bearer ", "").strip()
+
+            if not captured.get("token"):
+                for key, value in find_tokens(data):
+                    if key == "token":
+                        captured["token"] = value
+                        break
+            if not captured.get("access_token"):
+                for key, value in find_tokens(data):
+                    if key in {"access_token", "accesstoken"}:
+                        captured["access_token"] = value
+                        break
 
             if captured.get("token"):
                 log.info("eShikshaKosh login accepted (HTTP %s)", resp.status)
@@ -268,24 +284,21 @@ def fetch_student_list(session, headers, school_id, school_enc_id,
                        district_id, block_id, cluster_id,
                        academic_year, offset=0, limit=100,
                        class_id="", stream="", section=""):
-    # Proven request shape from the standalone OTR project. The UDISE
-    # integration calls this without class/stream/section filters so one
-    # complete school roster is fetched for local matching.
+    # Use the portal's proven school-scoped roster request. Extra
+    # district/block/cluster/schoolEncId fields can over-constrain the
+    # authenticated school scope and return an empty roster.
     payload = {
         "offset": str(offset),
         "limit": str(limit),
-        "searchDistrictId": str(district_id),
-        "searchBlockId": str(block_id),
-        "searchClusterId": str(cluster_id),
         "searchSchoolId": str(school_id),
-        "schoolEncId": school_enc_id,
-        "studentCode": "",
-        "admissionNo": "",
-        "classId": "",
-        "stream": "",
-        "group": "",
-        "section": "",
+        "academicYear": str(academic_year),
     }
+    if class_id:
+        payload["classId"] = str(class_id)
+    if stream:
+        payload["stream"] = str(stream)
+    if section:
+        payload["section"] = str(section)
     res = session.post(LIST_URL, headers=headers, json=payload,
                        timeout=35, verify=False)
     if res.status_code != 200:
@@ -382,7 +395,7 @@ async def verify_only_async(udise, password, academic_year, verify_ssl=False):
 
     jwt = decode_jwt(token)
     login_response = captured.get("login_response", {})
-    school_id = jwt.get("sub")
+    school_id = _find_school_id(jwt, login_response, udise)
     school_enc_id = jwt.get("schoolEncId") or jwt.get("school") or ""
     district_id = jwt.get("district") or 16
     block_id = 219
@@ -438,7 +451,7 @@ async def main_async(udise, password, academic_year, output, verify_ssl,
 
     jwt = decode_jwt(token)
     login_response = captured.get("login_response", {})
-    school_id = jwt.get("sub")
+    school_id = _find_school_id(jwt, login_response, udise)
     school_enc_id = jwt.get("schoolEncId") or jwt.get("school") or ""
     district_id = jwt.get("district") or 16
 
