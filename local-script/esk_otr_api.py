@@ -19,7 +19,6 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
-import nest_asyncio
 import requests
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -28,7 +27,6 @@ from playwright.async_api import async_playwright
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("esk_otr")
 
@@ -100,6 +98,25 @@ def build_headers(token: str, access_token: str) -> dict:
 
 async def login_playwright(uid: str, pwd: str) -> dict:
     captured = {}
+    loop = asyncio.get_running_loop()
+    previous_exception_handler = loop.get_exception_handler()
+
+    def _capture_asyncio_exception(loop, context):
+        # Playwright may report a background task failure after the triggering
+        # await has already returned. Preserve the actual exception so callers
+        # do not only see the misleading "Task exception was never retrieved".
+        exc = context.get("exception")
+        if exc is not None:
+            captured["async_task_error"] = f"{type(exc).__name__}: {exc}"
+        else:
+            captured["async_task_error"] = str(context.get("message") or "Background Playwright task failed")
+        if previous_exception_handler:
+            try:
+                previous_exception_handler(loop, context)
+            except Exception:
+                pass
+
+    loop.set_exception_handler(_capture_asyncio_exception)
 
     def find_tokens(value):
         if isinstance(value, dict):
@@ -216,6 +233,9 @@ async def login_playwright(uid: str, pwd: str) -> dict:
             finally:
                 await browser.close()
 
+    if captured.get("async_task_error") and not captured.get("token") and not captured.get("login_error"):
+        captured["login_error"] = "eShikshaKosh background login task failed: " + captured["async_task_error"]
+    loop.set_exception_handler(previous_exception_handler)
     return captured
 
 # ---------------------------------------------------------------------------
@@ -709,12 +729,12 @@ def main():
 
     try:
         if args.verify_only:
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 verify_only_async(args.udise, args.password, args.year, args.verify_ssl)
             )
             print("VERIFY_OK=" + json.dumps(result, ensure_ascii=False))
         else:
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 main_async(args.udise, args.password, args.year,
                            args.output, args.verify_ssl, args.export_mode,
                            class_filter=args.class_filter,
