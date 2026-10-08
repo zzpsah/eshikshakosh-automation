@@ -268,10 +268,9 @@ def fetch_student_list(session, headers, school_id, school_enc_id,
                        district_id, block_id, cluster_id,
                        academic_year, offset=0, limit=100,
                        class_id="", stream="", section=""):
-    # This is the proven eShikshaKosh roster request used by the standalone
-    # OTR project. Keep the portal's full school-scope fields intact.
-    # Class/stream/section are deliberately optional; the UDISE integration
-    # fetches the complete OTR roster in one pass and filters locally later.
+    # Proven request shape from the standalone OTR project. The UDISE
+    # integration calls this without class/stream/section filters so one
+    # complete school roster is fetched for local matching.
     payload = {
         "offset": str(offset),
         "limit": str(limit),
@@ -282,11 +281,10 @@ def fetch_student_list(session, headers, school_id, school_enc_id,
         "schoolEncId": school_enc_id,
         "studentCode": "",
         "admissionNo": "",
-        "classId": str(class_id) if class_id else "",
-        "stream": str(stream) if stream else "",
+        "classId": "",
+        "stream": "",
         "group": "",
-        "section": str(section) if section else "",
-        "academicYear": str(academic_year),
+        "section": "",
     }
     res = session.post(LIST_URL, headers=headers, json=payload,
                        timeout=35, verify=False)
@@ -384,7 +382,7 @@ async def verify_only_async(udise, password, academic_year, verify_ssl=False):
 
     jwt = decode_jwt(token)
     login_response = captured.get("login_response", {})
-    school_id = _find_school_id(jwt, login_response, udise)
+    school_id = jwt.get("sub")
     school_enc_id = jwt.get("schoolEncId") or jwt.get("school") or ""
     district_id = jwt.get("district") or 16
     block_id = 219
@@ -440,7 +438,7 @@ async def main_async(udise, password, academic_year, output, verify_ssl,
 
     jwt = decode_jwt(token)
     login_response = captured.get("login_response", {})
-    school_id = _find_school_id(jwt, login_response, udise)
+    school_id = jwt.get("sub")
     school_enc_id = jwt.get("schoolEncId") or jwt.get("school") or ""
     district_id = jwt.get("district") or 16
 
