@@ -65,6 +65,28 @@ def decode_jwt(token: str) -> dict:
         return {}
 
 
+def _find_school_id(jwt: dict, login_response: dict, uid: str) -> str:
+    """Resolve the portal school scope across JWT/profile variants."""
+    for source in (jwt,):
+        for key in ("sub", "schoolId", "school_id", "schoolCode", "schoolCodeId", "school"):
+            value = source.get(key)
+            if value not in (None, ""):
+                return str(value).strip()
+    profile_raw = login_response.get("userProfile", "") if isinstance(login_response, dict) else ""
+    try:
+        profile = json.loads(profile_raw) if isinstance(profile_raw, str) else profile_raw
+    except Exception:
+        profile = {}
+    if isinstance(profile, dict):
+        for key in ("schoolId", "school_id", "schoolCode", "schoolCodeId", "school"):
+            value = profile.get(key)
+            if value not in (None, ""):
+                return str(value).strip()
+    # The portal's list endpoint also accepts the authenticated school UDISE
+    # scope when no separate numeric school id is present in the token.
+    return str(uid or "").strip()
+
+
 def build_session(verify_ssl=False):
     s = requests.Session()
     s.verify = verify_ssl
@@ -357,7 +379,8 @@ async def verify_only_async(udise, password, academic_year, verify_ssl=False):
         raise RuntimeError(detail)
 
     jwt = decode_jwt(token)
-    school_id = jwt.get("sub")
+    login_response = captured.get("login_response", {})
+    school_id = _find_school_id(jwt, login_response, udise)
     school_enc_id = jwt.get("schoolEncId") or jwt.get("school") or ""
     district_id = jwt.get("district") or 16
     block_id = 219
@@ -412,7 +435,8 @@ async def main_async(udise, password, academic_year, output, verify_ssl,
         raise RuntimeError(detail)
 
     jwt = decode_jwt(token)
-    school_id = jwt.get("sub")
+    login_response = captured.get("login_response", {})
+    school_id = _find_school_id(jwt, login_response, udise)
     school_enc_id = jwt.get("schoolEncId") or jwt.get("school") or ""
     district_id = jwt.get("district") or 16
 
