@@ -204,7 +204,17 @@ async def login_playwright(uid: str, pwd: str) -> dict:
                 log.warning("Post-login session inspection failed: %s", exc)
 
         captured["final_url"] = page.url
-        await browser.close()
+        # Close Playwright resources in order so its internal async tasks are
+        # drained before the browser process disappears. Closing only the
+        # browser can leave a rejected Playwright task behind and surface the
+        # misleading "Task exception was never retrieved" message.
+        try:
+            await page.close()
+        finally:
+            try:
+                await context.close()
+            finally:
+                await browser.close()
 
     return captured
 
