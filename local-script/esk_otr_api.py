@@ -246,22 +246,22 @@ def fetch_student_list(session, headers, school_id, school_enc_id,
                        district_id, block_id, cluster_id,
                        academic_year, offset=0, limit=100,
                        class_id="", stream="", section=""):
+    # Keep this request aligned with the portal's proven roster endpoint.
+    # Extra district/block/cluster/schoolEncId fields can over-constrain the
+    # current school scope and return an empty roster even after a valid login.
     payload = {
         "offset": str(offset),
         "limit": str(limit),
-        "searchDistrictId": str(district_id),
-        "searchBlockId": str(block_id),
-        "searchClusterId": str(cluster_id),
         "searchSchoolId": str(school_id),
-        "schoolEncId": school_enc_id,
         "academicYear": str(academic_year),
-        "studentCode": "",
-        "admissionNo": "",
-        "classId": str(class_id) if class_id else "",
-        "stream": str(stream) if stream else "",
-        "group": "",
-        "section": str(section) if section else "",
     }
+    if class_id:
+        payload["classId"] = str(class_id)
+    if stream:
+        payload["stream"] = str(stream)
+    if section:
+        payload["section"] = str(section)
+
     res = session.post(LIST_URL, headers=headers, json=payload,
                        timeout=35, verify=False)
     if res.status_code != 200:
