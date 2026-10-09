@@ -1,22 +1,57 @@
 # eShikshaKosh web deployment
 
-## Target
-- Vercel project: `eshikshakosh`
-- Requested hostname: `https://eshikshakosh.vercel.app` (availability must be confirmed by Vercel)
-- Source: `web/` in this repository
-- UDISE project/deployments are separate and must not be modified.
+## Current deployment — 9 October 2026
 
-## Current web implementation
-A Next.js UI exists in `web/`. It provides a report setup screen and does not render student rows, portal tokens, or credentials in the browser. The Generate action is deliberately a safe stub until the protected backend is implemented and configured; it does not send portal requests yet.
+- GitHub source: `zzpsah/eshikshakosh-automation`, branch `main`.
+- Web app source: `web/` (Next.js).
+- Vercel project: `zzpsah/eshikshakosh`.
+- Selected hostname: **https://eshikakoshapp.vercel.app**
+- Deployment target previously reported Ready: `https://eshikshakosh-jgwtqxdxu-zzpsah.vercel.app`.
+- The selected alias was assigned successfully to that deployment.
+- Vercel Deployment Protection / Vercel Authentication was enabled at the last verified checkpoint; do not describe the app as anonymously/publicly accessible without checking current settings.
+- The requested `eshikshakosh.vercel.app` hostname was already in use by another deployment and was not assigned.
+- UDISE is a separate project/repository. Never change UDISE production or `udise-login-staging` while working here.
 
-## Required before production
-1. Configure a private access gate and server-side session protection.
-2. Establish a secure authenticated path from the Vercel server to the Oracle report runner. Do not expose a public unauthenticated report endpoint.
-3. The server-side bridge must invoke only the existing read-only runner, validate permitted school/session/scope, apply rate limits, and return a short-lived authenticated download for the generated workbook.
-4. Never pass portal credentials, JWTs, cookies, student records, or workbook contents to client-side JavaScript or logs.
-5. Do not use localStorage for credentials or tokens. Use secure, HttpOnly, SameSite cookies for app sessions and CSRF protection for state-changing requests.
-6. Configure Vercel project root directory as `web`; set the project name to `eshikshakosh`. Do not link this repo to any UDISE Vercel project.
-7. Confirm the requested `eshikshakosh.vercel.app` hostname is available and assigned to this project before reporting the URL as live.
+## Implemented
 
-## Verification
-Run `npm run lint` and `npm run build` from `web/`. Deployment must remain disabled until the private backend/access gate is in place and tested end-to-end.
+The responsive Next.js report setup UI is deployed. It offers school code, academic session, report scope and privacy messaging. It does not show student rows, portal tokens or credentials in the browser.
+
+**The Generate Excel report action is still a placeholder.** It displays a not-connected status and does not call the portal or produce a downloadable workbook. The successful domain assignment and frontend deployment do not mean the backend is connected.
+
+## Backend connection — pending
+
+The existing private read-only report generator is in `local-script/esk_otr_api.py`, launched by `local-script/run_report.sh`. The private runner may produce a workbook containing sensitive student information, including Aadhaar, bank-account and mobile data. It must not be exposed as an unrestricted public process.
+
+Before enabling report generation:
+
+1. Add an authenticated, server-side app access gate; do not rely solely on obscurity of the URL.
+2. Provide a private, authenticated route from the Vercel app to the authorized Oracle report runner. No unauthenticated public command endpoint.
+3. Validate allowed school/session/scope and restrict the operation to the existing read-only report workflow.
+4. Add rate limits, request validation, job timeouts, safe error messages and audit events that do not contain secrets or student data.
+5. Keep portal credentials, cookies, JWTs, tokens, workbook contents and student records out of browser JavaScript and logs.
+6. Deliver the workbook only through a short-lived, authenticated download route; avoid public persistent file URLs.
+7. Use secure HttpOnly, SameSite cookies for any app session, with CSRF protection where applicable. Never put credentials/tokens in localStorage.
+8. Verify Vercel root directory is `web` and that the project remains linked only to `zzpsah/eshikshakosh-automation`.
+9. Test lint/build, unauthenticated rejection, authorized generation, download authorization/expiry, and cleanup using a controlled test—not by exposing real student data.
+
+## Verification boundary
+
+- Frontend source/deployment: implemented; a deployment was reported Ready and the alias assignment succeeded.
+- Frontend-to-backend connection: **not implemented/verified at the last checkpoint**.
+- Authenticated end-to-end Excel download: **not tested**.
+- Do not claim report generation is operational until those last two items pass.
+
+## Recovery / access
+
+The Oracle remote-control device was reported offline at the last attempted connection on 9 October 2026. If still offline, reconnect the remote-control service before changing or testing the server. Do not work around the outage by exposing the report runner publicly.
+
+## Required checks
+
+Run from `web/`:
+
+```bash
+npm run lint
+npm run build
+```
+
+After any changes, update this document with verified evidence and commit the docs/code together. Never commit student exports, credentials, cookies, tokens or secret environment files.
