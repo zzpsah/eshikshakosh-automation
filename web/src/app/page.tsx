@@ -1,135 +1,451 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useState } from "react";
 
-type ReportKind = "student" | "roster" | "profile";
-type School = "Sahaspur" | "Tetahali";
+/* ------------------------------------------------------------------ */
+/* Data — every value below is a real fact about the repository.       */
+/* ------------------------------------------------------------------ */
 
-const reports: Record<ReportKind, { title: string; eyebrow: string; description: string; command: (school: School) => string; steps: string[] }> = {
-  student: {
-    title: "Student details",
-    eyebrow: "STUDENT REPORT",
-    description: "Generate the existing student-details workbook through the authorised Oracle VPS workflow.",
-    command: () => "~/.local/bin/eshikshakosh-report",
-    steps: ["Run the command on the authorised Oracle VPS or through your approved Hermes workflow.", "Choose the school and any requested report filters when prompted.", "Review the generated workbook before sharing it."],
+const SCHOOLS = [
+  { value: "Sahaspur", label: "UMV Sahaspur" },
+  { value: "Tetahali", label: "UCHCH Madhyamik Vidyalaya Tetahali" },
+];
+
+const WORKFLOWS = [
+  {
+    id: "student",
+    name: "Student details",
+    group: "Student",
+    tag: "OTR",
+    summary:
+      "Class, section or stream scoped student workbook for one school. Written to the repository root with mode 0600.",
+    entry: "~/.local/bin/eshikshakosh-report",
+    output: "Student_Details_<School>_<Session>.xlsx",
+    scope: "Classes 9-12 · class / section / stream filters",
+    facts: [
+      ["Output", "Student_Details_<School>_<Session>.xlsx"],
+      ["Scope", "Classes 9-12 · class / section / stream filters"],
+      ["Privacy", "full or masked (default: full)"],
+      ["Credentials", "Bitwarden, read-only"],
+    ],
+    steps: [
+      "Run the command on the Oracle VPS.",
+      "The runner asks for the session year, then the school.",
+      "The workbook is written to the repository root, mode 0600.",
+    ],
+    caution:
+      "Student records include Aadhaar, bank and contact fields. Keep the file inside the repository and never commit it.",
   },
-  roster: {
-    title: "Teacher roster",
-    eyebrow: "TEACHER REPORT",
-    description: "Export the teacher list and available profile fields for one registered school.",
-    command: (school) => `modules/teacher/run_teacher_report.sh --school ${school}`,
-    steps: ["Open the eshikshakosh-automation project on the Oracle VPS.", "Run the command below from the repository root.", "The timestamped Excel workbook is saved in ~/exports."],
+  {
+    id: "roster",
+    name: "Teacher roster",
+    group: "Teacher",
+    tag: "LIST",
+    summary:
+      "One row per teacher with readable labels and a combined address. Built from the list API merged with registration info.",
+    entry: "modules/teacher/run_teacher_report.sh",
+    output: "~/exports/Teachers_<School>_browser_<timestamp>.xlsx",
+    scope: "All teachers of the selected school",
+    facts: [
+      ["Output", "Teachers_<School>_browser_<timestamp>.xlsx"],
+      ["Columns", "28 · labels, not raw codes"],
+      ["Address", "single cell, labelled"],
+      ["Credentials", "Bitwarden, read-only"],
+    ],
+    steps: [
+      "Run the command on the Oracle VPS.",
+      "Pick the school when prompted — it never assumes one.",
+      "The runner logs in, captures the session and writes the workbook.",
+    ],
+    caution:
+      "The roster carries mobile, PAN and Aadhaar values. Treat it as personal data.",
   },
-  profile: {
-    title: "Full teacher profiles",
-    eyebrow: "TEACHER DETAIL REPORT",
-    description: "Export teacher registration details, education, professional qualifications, other information, training and service history.",
-    command: (school) => `modules/teacher/run_teacher_detail_report.sh --school ${school}`,
-    steps: ["Open the eshikshakosh-automation project on the Oracle VPS.", "Run the command below from the repository root.", "Check the workbook sheets and confirm empty sections against the portal before drawing conclusions."],
+  {
+    id: "detail",
+    name: "Full teacher profiles",
+    group: "Teacher",
+    tag: "DETAIL",
+    summary:
+      "Seven sheets per teacher: registration, education, professional, other, training and service history.",
+    entry: "modules/teacher/run_teacher_detail_report.sh",
+    output: "~/exports/Teacher_Details_<School>_<timestamp>.xlsx",
+    scope: "All teachers of the selected school",
+    facts: [
+      ["Output", "Teacher_Details_<School>_<timestamp>.xlsx"],
+      ["Sheets", "7 · Teachers, Registration, Education, Professional, Other, Training, Service"],
+      ["Credentials", "Bitwarden, read-only"],
+    ],
+    steps: [
+      "Run the command on the Oracle VPS.",
+      "Pick the school when prompted — it never assumes one.",
+      "Set ESHIKSHAKOSH_DETAIL_LIMIT=N to cap the run while testing.",
+    ],
+    caution:
+      "Service history can include previous postings. Verify before sharing outside the school.",
   },
-};
+] as const;
 
-export default function Home() {
-  const [reportKind, setReportKind] = useState<ReportKind>("profile");
-  const [school, setSchool] = useState<School>("Sahaspur");
-  const [copied, setCopied] = useState(false);
-  const [copyError, setCopyError] = useState(false);
-  const selected = reports[reportKind];
-  const command = useMemo(() => selected.command(school), [selected, school]);
+type WorkflowId = (typeof WORKFLOWS)[number]["id"];
 
-  async function copyCommand() {
+const REFERENCE = [
+  {
+    wf: "Student details",
+    entry: "~/.local/bin/eshikshakosh-report",
+    output: "Student_Details_<School>_<Session>.xlsx",
+    scope: "Classes 9-12 · class / section / stream",
+  },
+  {
+    wf: "Teacher roster",
+    entry: "modules/teacher/run_teacher_report.sh --school <School>",
+    output: "Teachers_<School>_browser_<timestamp>.xlsx",
+    scope: "All teachers of the school",
+  },
+  {
+    wf: "Full teacher profiles",
+    entry: "modules/teacher/run_teacher_detail_report.sh --school <School>",
+    output: "Teacher_Details_<School>_<timestamp>.xlsx",
+    scope: "All teachers of the school",
+  },
+];
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+function buildCommand(id: WorkflowId, school: string, cls: string, mode: string) {
+  if (id === "student") {
+    const parts = ["~/.local/bin/eshikshakosh-report"];
+    if (cls !== "all") parts.push(`--class ${cls}`);
+    if (mode === "masked") parts.push("--mode masked");
+    return parts.join(" ");
+  }
+  const entry = WORKFLOWS.find((w) => w.id === id)!.entry;
+  return `${entry} --school ${school}`;
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [state, setState] = useState<"idle" | "done" | "error">("idle");
+
+  async function copy() {
     try {
-      await navigator.clipboard.writeText(command);
-      setCopied(true);
-      setCopyError(false);
-      window.setTimeout(() => setCopied(false), 2200);
+      await navigator.clipboard.writeText(text);
+      setState("done");
     } catch {
-      setCopied(false);
-      setCopyError(true);
+      setState("error");
     }
+    window.setTimeout(() => setState("idle"), 1800);
   }
 
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <Link className="brand" href="/" aria-label="School Data Desk home">
-          <span className="brand-symbol">SD</span>
-          <span className="brand-copy"><strong>School Data Desk</strong><small>e-ShikshaKosh tools</small></span>
-        </Link>
-        <div className="nav-label">WORKSPACE</div>
-        <a className="nav-item active" href="#reports"><span className="nav-icon">▤</span> Report centre <span className="nav-arrow">›</span></a>
-        <a className="nav-item" href="#how-it-works"><span className="nav-icon">↗</span> How it works</a>
-        <a className="nav-item" href="#safety"><span className="nav-icon">◇</span> Data & safety</a>
-        <div className="sidebar-bottom">
-          <span className="status-dot amber" />
-          <div><strong>Portal connection</strong><small>Runner integration pending</small></div>
+    <>
+      <button
+        type="button"
+        className="copy"
+        data-state={state === "done" ? "done" : undefined}
+        onClick={copy}
+      >
+        {state === "done" ? "Copied" : "Copy"}
+      </button>
+      <p className="copy-note" aria-live="polite">
+        {state === "error"
+          ? "Clipboard blocked — select the command and copy it manually."
+          : "Run this on the Oracle VPS. This page does not run reports."}
+      </p>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
+
+export default function Page() {
+  const [wf, setWf] = useState<WorkflowId>("student");
+  const [school, setSchool] = useState(SCHOOLS[0].value);
+  const [cls, setCls] = useState("all");
+  const [mode, setMode] = useState<"full" | "masked">("full");
+
+  const active = WORKFLOWS.find((w) => w.id === wf)!;
+  const command = buildCommand(wf, school, cls, mode);
+
+  return (
+    <div className="shell">
+      {/* ---------------- rail ---------------- */}
+      <aside className="rail">
+        <div className="brand">
+          <span className="brand-mark">SD</span>
+          <span className="brand-text">
+            <strong>School Data Desk</strong>
+            <span>e-ShikshaKosh workflows</span>
+          </span>
+        </div>
+
+        <nav className="rail-nav" aria-label="Sections">
+          <span className="rail-label">Report centre</span>
+          <a className="rail-link" href="#workbench" aria-current="true">
+            Workbench
+          </a>
+          <a className="rail-link" href="#reference">
+            Reference
+          </a>
+          <a className="rail-link" href="#safety">
+            Safety
+          </a>
+        </nav>
+
+        <div className="rail-foot">
+          <dl>
+            <div className="rail-foot-row">
+              <dt>Environment</dt>
+              <dd>Oracle VPS</dd>
+            </div>
+            <div className="rail-foot-row">
+              <dt>Access</dt>
+              <dd>Read-only</dd>
+            </div>
+            <div className="rail-foot-row">
+              <dt>Credentials</dt>
+              <dd>Bitwarden</dd>
+            </div>
+          </dl>
         </div>
       </aside>
 
-      <section className="main-area">
+      {/* ---------------- main ---------------- */}
+      <div className="main">
         <header className="topbar">
-          <div><span className="breadcrumb">Workspace</span><span className="crumb-sep">/</span><strong>Report centre</strong></div>
-          <span className="environment"><span className="status-dot amber" /> Command guide</span>
+          <nav className="crumbs" aria-label="Breadcrumb">
+            <span>e-ShikshaKosh</span>
+            <span>/</span>
+            <strong>Report centre</strong>
+          </nav>
+          <div className="topbar-meta">
+            <span className="chip chip-ok">
+              <span className="dot dot-ok" />
+              Read-only
+            </span>
+            <span className="chip chip-warn">
+              <span className="dot dot-warn" />
+              Not connected
+            </span>
+          </div>
         </header>
 
-        <div className="content">
-          <section className="welcome">
-            <div className="welcome-copy">
-              <div className="overline"><span className="overline-mark" /> SCHOOL OPERATIONS</div>
-              <h1>School reports,<br /><em>without the guesswork.</em></h1>
-              <p>Choose a verified report workflow, copy its command, and run it on the authorised Oracle VPS. This website does not sign in to e-ShikshaKosh or generate files by itself yet.</p>
-            </div>
-            <div className="welcome-art" aria-hidden="true">
-              <div className="art-sheet"><div className="art-sheet-top" /><div className="art-line wide" /><div className="art-line" /><div className="art-line short" /><div className="art-grid"><i /><i /><i /><i /><i /><i /></div></div>
-              <div className="art-check">✓</div>
-            </div>
-          </section>
+        <div className="body">
+          {/* context line — replaces the old hero */}
+          <div className="context">
+            <h1>Report workbench</h1>
+            <p>
+              Pick a workflow, set the school, copy the command. Reports run on
+              the Oracle VPS — this page only builds the command.
+            </p>
+          </div>
 
-          <section className="connection-banner" aria-label="Integration status">
-            <span className="banner-icon">i</span>
-            <div><strong>Report service is not connected to this website</strong><p>The existing scripts run on the Oracle VPS. No portal request is sent from this page, and no password or student/teacher personal data should be entered here.</p></div>
-            <span className="status-pill">Not connected</span>
-          </section>
-
-          <section className="report-layout" id="reports">
-            <div className="report-picker">
-              <div className="section-heading"><div><span className="section-kicker">01 / SELECT A WORKFLOW</span><h2>What do you need?</h2></div><span className="count-badge">3 workflows</span></div>
-              <div className="report-options">
-                <button type="button" className={reportKind === "student" ? "report-option selected" : "report-option"} onClick={() => { setReportKind("student"); setCopied(false); }} aria-pressed={reportKind === "student"}>
-                  <span className="option-icon student-icon">▦</span><span className="option-text"><strong>Student details</strong><small>Student report workbook</small></span><span className="option-chevron">›</span>
-                </button>
-                <button type="button" className={reportKind === "roster" ? "report-option selected" : "report-option"} onClick={() => { setReportKind("roster"); setCopied(false); }} aria-pressed={reportKind === "roster"}>
-                  <span className="option-icon roster-icon">☷</span><span className="option-text"><strong>Teacher roster</strong><small>Teacher list and profile fields</small></span><span className="option-chevron">›</span>
-                </button>
-                <button type="button" className={reportKind === "profile" ? "report-option selected" : "report-option"} onClick={() => { setReportKind("profile"); setCopied(false); }} aria-pressed={reportKind === "profile"}>
-                  <span className="option-icon profile-icon">▤</span><span className="option-text"><strong>Full teacher profiles</strong><small>Seven-sheet detail workbook</small></span><span className="option-chevron">›</span>
-                </button>
+          {/* ---------------- workbench ---------------- */}
+          <div className="workbench" id="workbench">
+            <section className="panel" aria-label="Workflows">
+              <div className="wf-list-head">
+                <span className="eyebrow">Workflows</span>
+                <strong>Choose one</strong>
               </div>
-              <div className="picker-foot"><span className="status-dot green" /> Read-only workflow <span className="foot-separator">·</span> Excel output</div>
-            </div>
+              <div className="wf-list" role="group" aria-label="Workflow">
+                {WORKFLOWS.map((w) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    className="wf-row"
+                    aria-pressed={wf === w.id}
+                    onClick={() => setWf(w.id)}
+                  >
+                    <span>
+                      <span className="wf-row-name">{w.name}</span>
+                      <span className="wf-row-meta">{w.group}</span>
+                    </span>
+                    <span className="wf-row-tag">{w.tag}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
 
-            <div className="command-card">
-              <div className="command-card-head"><div><span className="section-kicker">02 / WORKFLOW DETAILS</span><span className="type-label">{selected.eyebrow}</span><h2>{selected.title}</h2></div><span className="file-badge">XLSX</span></div>
-              <p className="workflow-description">{selected.description}</p>
-              {reportKind !== "student" && <div className="school-field"><label htmlFor="school">Registered school</label><select id="school" value={school} onChange={(e) => { setSchool(e.target.value as School); setCopied(false); }}><option value="Sahaspur">UMV Sahaspur</option><option value="Tetahali">UMV Tetahali</option></select><small>Uses the configured school alias and protected credential workflow.</small></div>}
-              <div className="command-label"><span>COMMAND</span><span>Run on Oracle VPS</span></div>
-              <div className="command-box"><code>{command}</code><button type="button" className="copy-button" onClick={copyCommand} aria-label="Copy command">{copied ? "Copied ✓" : "Copy"}</button></div>
-              {copyError && <p className="copy-error" role="status">Clipboard access was blocked. Select and copy the command above manually.</p>}
-              <div className="workflow-steps"><strong>Next steps</strong><ol>{selected.steps.map((step) => <li key={step}>{step}</li>)}</ol></div>
-              <div className="not-run-note"><span>!</span><p><strong>This button does not generate a report.</strong> The live runner/API must be securely connected before in-browser generation can be enabled.</p></div>
+            <section className="panel" aria-label="Command">
+              <div className="action-head">
+                <div>
+                  <span className="eyebrow">{active.group}</span>
+                  <h3>{active.name}</h3>
+                  <p>{active.summary}</p>
+                </div>
+              </div>
+
+              <div className="action-body">
+                {wf === "student" ? (
+                  <div className="field-row">
+                    <div className="field">
+                      <label htmlFor="cls">Class</label>
+                      <select
+                        id="cls"
+                        value={cls}
+                        onChange={(e) => setCls(e.target.value)}
+                      >
+                        <option value="all">All classes</option>
+                        <option value="9">Class 9</option>
+                        <option value="10">Class 10</option>
+                        <option value="11">Class 11</option>
+                        <option value="12">Class 12</option>
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label id="mode-label">Privacy mode</label>
+                      <div
+                        className="segmented"
+                        role="group"
+                        aria-labelledby="mode-label"
+                      >
+                        <button
+                          type="button"
+                          aria-pressed={mode === "full"}
+                          onClick={() => setMode("full")}
+                        >
+                          Full
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={mode === "masked"}
+                          onClick={() => setMode("masked")}
+                        >
+                          Masked
+                        </button>
+                      </div>
+                      <span className="hint">
+                        Masked hides Aadhaar, bank and contact values.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="field">
+                    <label htmlFor="school">School</label>
+                    <select
+                      id="school"
+                      value={school}
+                      onChange={(e) => setSchool(e.target.value)}
+                    >
+                      {SCHOOLS.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="hint">
+                      The runner always asks — it never assumes a school.
+                    </span>
+                  </div>
+                )}
+
+                <div>
+                  <div className="cmd-label">
+                    <span>Command</span>
+                    <em>Oracle VPS · bash</em>
+                  </div>
+                  <div className="cmd">
+                    <code>
+                      <b>$</b> {command}
+                    </code>
+                    <CopyButton text={command} />
+                  </div>
+                </div>
+
+                <dl className="facts">
+                  {active.facts.map(([k, v]) => (
+                    <div key={k} style={{ display: "contents" }}>
+                      <dt>{k}</dt>
+                      <dd>{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+
+                <div>
+                  <span className="eyebrow">Before you run</span>
+                  <ol className="steps">
+                    {active.steps.map((s) => (
+                      <li key={s}>{s}</li>
+                    ))}
+                  </ol>
+                </div>
+
+                <div className="caution">
+                  <strong>Handle with care</strong>
+                  <p>{active.caution}</p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {/* ---------------- reference ---------------- */}
+          <section className="ref" id="reference" aria-label="Reference">
+            <div className="sec-head">
+              <h2>All workflows</h2>
+              <span className="sec-note">
+                Entry points and outputs, at a glance
+              </span>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Workflow</th>
+                    <th scope="col">Entry point</th>
+                    <th scope="col">Output</th>
+                    <th scope="col">Scope</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {REFERENCE.map((r) => (
+                    <tr key={r.wf}>
+                      <td className="wf">{r.wf}</td>
+                      <td>
+                        <code>{r.entry}</code>
+                      </td>
+                      <td>{r.output}</td>
+                      <td>{r.scope}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
 
-          <section className="lower-grid" id="how-it-works">
-            <article className="info-card"><span className="info-number">01</span><div><h3>Choose a workflow</h3><p>Select student details, teacher roster, or the full teacher profile workbook.</p></div></article>
-            <article className="info-card"><span className="info-number">02</span><div><h3>Run it on the VPS</h3><p>The existing protected runner handles portal login, authorised school scope, and Excel export.</p></div></article>
-            <article className="info-card" id="safety"><span className="info-number">03</span><div><h3>Review before sharing</h3><p>Exports can contain personal and employment information. Store them securely and share only with authorised recipients.</p></div></article>
+          {/* ---------------- safety ---------------- */}
+          <section className="safety" id="safety" aria-label="Safety">
+            <div>
+              <h3>Read-only by design</h3>
+              <p>
+                Every workflow only reads from the portal. Nothing is written
+                back to e-ShikshaKosh.
+              </p>
+            </div>
+            <div>
+              <h3>Credentials stay in Bitwarden</h3>
+              <p>
+                The runners read them at runtime. No password is stored in this
+                repository or on this page.
+              </p>
+            </div>
+            <div>
+              <h3>Not connected</h3>
+              <p>
+                This page cannot reach the portal. Copy the command and run it
+                on the Oracle VPS.
+              </p>
+            </div>
           </section>
 
-          <footer className="footer"><span>School Data Desk <span className="footer-muted">·</span> e-ShikshaKosh workflow helper</span><span>Independent utility · Not an official Bihar Government portal</span></footer>
+          <footer className="foot">
+            <span>
+              School Data Desk · e-ShikshaKosh automation repository
+            </span>
+            <span>Read-only · Bitwarden · Oracle VPS</span>
+          </footer>
         </div>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }
