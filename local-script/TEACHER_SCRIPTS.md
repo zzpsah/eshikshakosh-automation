@@ -77,7 +77,7 @@ The experimental `esk_teacher_unified.py` (a proposed one-script list + detail i
 was **deleted on 2026-10-17** at the user's direction. Do not recreate it: the API list and the
 browser detail extractor stay separate.
 
-Timestamped backup copies (for example `*.bak_*`) are snapshots, not entry points.
+Historical snapshots, if retained, belong under `local-script/archive/snapshots/`; they are not entry points.
 
 ## Data flow
 
@@ -164,4 +164,4 @@ absent in the portal. Write a blank cell, not the string `None`.
 - Called all seven detail endpoints plus the dead `/teacher/getTeacherDetails` live on 2026-10-17 and recorded HTTP status and row counts.
 - Ran the detail extractor end to end after the Education fix: 16 teachers, 6 sections each, Education sheet 18 rows.
 - Ran shell syntax checks and Python compilation for the supported runners/extractors.
-- No portal write, credential access beyond the protected wrapper, or source-file cleanup was performed.
+- Validation is read-only against the portal. Repository housekeeping is limited to moving local backup snapshots out of the active script directory and removing generated Python bytecode.

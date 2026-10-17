@@ -20,7 +20,7 @@ The responsive Next.js report setup UI is deployed. It offers school code, acade
 
 ## Backend connection — pending
 
-The existing private read-only report generator is in `student-scripts/esk_otr_api.py`, launched by `local-script/archive/run_report.sh`. The private runner may produce a workbook containing sensitive student information, including Aadhaar, bank-account and mobile data. It must not be exposed as an unrestricted public process.
+The existing private read-only report generator is in `student-scripts/esk_otr_api.py`, launched by `local-script/run_report.sh`. The private runner may produce a workbook containing sensitive student information, including Aadhaar, bank-account and mobile data. It must not be exposed as an unrestricted public process.
 
 Before enabling report generation:
 

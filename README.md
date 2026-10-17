@@ -52,7 +52,7 @@ Key local components:
 - `local-script/run_report.sh` — validated local student-report runner; emits `REPORT_READY=<path>` on success.
 - `local-script/archive/` — retired scripts kept for reference only. Nothing there is a supported entry point.
 
-Earlier documentation referenced `local-script/esk_otr_api.py` and
+Earlier documentation referenced `student-scripts/esk_otr_api.py` and
 `local-script/install-hermes-skill.sh` at their old paths. Those files moved:
 `esk_otr_api.py` now lives in `student-scripts/`, and `install-hermes-skill.sh` is retired
 under `local-script/archive/`. `local-script/run_report.sh` stays a live runner in place.
@@ -130,7 +130,7 @@ READ -> UNDERSTAND -> PLAN -> IMPLEMENT -> TEST -> REVIEW -> FIX -> COMMIT -> UP
 The repository has two deliberately separate paths:
 
 - **Safe/manual exporter:** `eshikshakosh_otr.py` uses a short-lived bearer token, normal TLS verification, user-selected export privacy mode (default `full`), and no portal mutation.
-- **Private local automation:** `local-script/esk_otr_api.py` plus `local-script/run_report.sh` is for the authorized private runtime only. Credentials come from the protected runtime environment/wrapper; generated reports remain local and are ignored by Git.
+- **Private local automation:** `student-scripts/esk_otr_api.py` plus `local-script/run_report.sh` is for the authorized private runtime only. Credentials come from the protected runtime environment/wrapper; generated reports remain local and are ignored by Git.
 
 Do not infer or commit unverified portal endpoints. Generated student workbooks are operational artifacts, not source files.
 
@@ -168,7 +168,7 @@ Stream mapping: Arts=`1`, Science=`2`, Commerce=`3`. For full-school output, `--
 
 ## Live login contract — 7 October 2026
 
-The private VPS exporter in `local-script/esk_otr_api.py` follows the current portal login contract:
+The private VPS exporter in `student-scripts/esk_otr_api.py` follows the current portal login contract:
 
 - frontend: `https://eshikshakosh.bihar.gov.in`
 - login API: `POST https://eshikshakosh.bihar.gov.in:8443/auth/login`

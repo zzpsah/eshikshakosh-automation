@@ -9,7 +9,7 @@ short-lived Bearer token -> maintained safe script -> masked workbook
 Local/VPS:
 authorized request -> school resolution -> Bitwarden runtime injection
 -> ~/.local/bin/eshikshakosh-report
--> local-script/archive/run_report.sh
+-> local-script/run_report.sh
 -> .venv/bin/python student-scripts/esk_otr_api.py
 -> read-only portal/API fetch
 -> private .xlsx

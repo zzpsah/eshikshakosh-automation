@@ -11,7 +11,7 @@ Hermes/private command
 protected secret wrapper/environment
       |
       v
-local-script/archive/run_report.sh
+local-script/run_report.sh
       |
       v
 student-scripts/esk_otr_api.py
