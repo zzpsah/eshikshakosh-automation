@@ -22,7 +22,7 @@ Repository: `/home/prashant/projects/eshikshakosh-automation` (`~/projects/eshik
 - Protected secret wrapper: `/home/prashant/.local/bin/eshikshakosh-run`
 - Python environment: `/home/prashant/projects/eshikshakosh-automation/.venv/`
 - Teacher workbook exports: `/home/prashant/exports/`
-- Current student runner writes `Student_Details_*.xlsx` to the repository root. Existing generated workbooks are private operational data, not source files.
+- Student runner moves completed `Student_Details_*.xlsx` files to `/home/prashant/exports/student/`; historical reports are kept in its `archive/` subfolder. Workbooks are private operational data, not source files.
 - Vercel project files: `web/`; local `.vercel/` metadata must not be committed.
 
 See [docs/VPS-PATHS.md](docs/VPS-PATHS.md) for the full path map and how to add future modules.

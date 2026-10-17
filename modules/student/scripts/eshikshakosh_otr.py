@@ -1,7 +1,7 @@
 """
 e-Shikshakosh read-only student report export (COLAB ORIGINAL).
 
-DEPRECATED FOR LOCAL USE - see local-script/esk_otr_api.py for the
+DEPRECATED FOR LOCAL USE - see modules/student/scripts/esk_otr_api.py for the
 full local automation version (Playwright login, auto-captcha, unmasked
 Aadhaar/bank/OTR data, Excel export).
 

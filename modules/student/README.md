@@ -19,6 +19,8 @@ Canonical VPS directory: `~/projects/eshikshakosh-automation/modules/student/`.
 | Launcher | `/home/prashant/.local/bin/eshikshakosh-report` |
 | Secret wrapper | `/home/prashant/.local/bin/eshikshakosh-run` |
 | Python | `/home/prashant/projects/eshikshakosh-automation/.venv/bin/python` |
-| Generated student workbook | repository root as `Student_Details_*.xlsx` (current runner behavior) |
+| Generated student workbook | `/home/prashant/exports/student/`; historical workbooks in `archive/` |
 
 Supported example: `~/.local/bin/eshikshakosh-report --class 10 --mode masked`. Do not put secrets or exported student data in this module or Git.
+
+For Google Colab, the preserved notebook asks you to upload `eshikshakosh_otr.py`; upload the file from `modules/student/scripts/` and keep the repository `requirements.txt` available. The notebook itself was intentionally preserved unchanged.

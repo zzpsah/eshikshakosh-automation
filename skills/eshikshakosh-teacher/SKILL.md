@@ -136,8 +136,8 @@ The extraction script exports a **curated 28-column format** (not all 110+ raw f
 1. Serial No (`slNo`)
 2. Temp Login ID (`teacherLoginCode`)
 3. Teacher Name (`teacherName`)
-4. Gender (`gender` — 1→Male, 2→Female)
-5. Marital Status (`maritalStatus`)
+4. Gender (`gender` — readable label from `registrationInfo`; `1`→`Male` / `2`→`Female` only as fallback)
+5. Marital Status (`maritalStatus` — readable label, e.g. `Single` / `Married`)
 6. Date of Birth (`DOB`)
 7. Teacher Title (`teacherTitle`)
 8. Nature of Appointment (`natureOfAppointmt`)
@@ -197,17 +197,23 @@ The following raw fields are **not** exported: `prefix`, `firstName`, `middleNam
 
 ## Full detail extraction (7 sheets)
 
-When user asks for full teacher details (education, service history, professional info), extract data from all tabs on the teacher detail page:
+The current implementation does NOT scrape the detail page's tabs. It issues the portal's own
+JSON endpoints from inside the authenticated browser session — one call per teacher per
+section. Tab-text scraping was the earlier approach, and it is what left sheets blank; do not
+reintroduce it.
 
-1. Navigate to `viewTeacher?teacherId=<tId>` for each teacher
-2. Extract default Registration Info tab
-3. Click "Service History" link (opens new tab) → extract text → close tab
-4. Click "Educational Info" link → extract text → close tab
-5. Click "Professional Info" link → extract text → close tab
-6. Click "Training & Language Info" link → extract text → close tab
-7. Export to multi-sheet Excel: Teachers, Service History, Education Info, Professional Info, Training Info
+Procedure (`modules/teacher/scripts/esk_teacher_detail_extract.py`):
 
-**Pitfall — new tab capture**: `context.expect_page()` does NOT reliably capture new tabs opened by link clicks. Use page-count diffing instead:
+1. Log in, click Search, capture the live `/teacher/viewTeacher` request — keep its auth
+   headers and paginate with them until `totalRecord` is reached.
+2. Validate every returned row against `ESHIKSHAKOSH_TARGET_UDISE` and abort before writing a
+   workbook on any mismatch.
+3. For each teacher, POST the section endpoints keyed by that teacher's `encId` (see the
+   endpoint table below) through `page.evaluate(fetch(...))`.
+4. Tag and merge the two education lists, then write the 7-sheet workbook.
+5. Record a section that errors and keep going — one bad section must not abort the export.
+
+**Pitfall — new tab capture** (only if you fall back to tab scraping): `context.expect_page()` does NOT reliably capture new tabs opened by link clicks. Use page-count diffing instead:
 ```python
 pages_before = len(context.pages)
 await link.click()
@@ -258,14 +264,34 @@ ESHIKSHAKOSH_USERNAME=<login> ESHIKSHAKOSH_PASSWORD=*** \
 modules/teacher/run_teacher_report.sh --udise 10130106304 --username <login> --password <password>
 ```
 
+## Repository module layout
+
+The repo is split by functional module. Teacher work lives only under `modules/teacher/`.
+
+```
+modules/student/   student OTR: run_report.sh, scripts/, notebooks/
+modules/teacher/   teacher: run_teacher_report.sh, run_teacher_detail_report.sh, scripts/, archive/
+shared/            cross-module: esk_schools.py (school/credential registry), wrapper config
+```
+
+Runners resolve the repo root as `$(dirname "$0")/../..`. A new workflow becomes
+`modules/<name>/` with its own README, scripts and runner — never another flat root-level
+script collection. `docs/VPS-PATHS.md` owns the physical path map.
+
 ## Two scripts — keep them SEPARATE
 
-User directive: the browser-based and API-based methods stay separate. Do NOT merge them into one script, and do NOT modify the browser script unless explicitly asked.
+User directive: the browser-based and API-based methods stay separate. Do NOT merge them into
+one script. An earlier merged `esk_teacher_unified.py` was deleted at the user's direction —
+do not recreate it, and do not add a third export path.
 
 | Script | Method | Output |
 |---|---|---|
 | `modules/teacher/scripts/esk_teacher_list.py` | API (list + per-teacher `registrationInfo`) | 28-col list with combined address |
-| `modules/teacher/scripts/esk_teacher_detail_extract.py` | Browser / Playwright | 7-sheet full detail — **do not modify** |
+| `modules/teacher/scripts/esk_teacher_detail_extract.py` | Browser / Playwright | 7-sheet full detail |
+
+"Keep them separate" governs structure, not correctness. Fixing a verified bug inside the
+browser extractor — a dead endpoint call, a section whose rows are never read — is in scope.
+What is out of scope is folding the two methods together or replacing one with the other.
 
 Both must ask, never assume: which school, then credentials (Bitwarden or typed in), then how much detail. Prompts in plain Hindi ("Kaunsi school ka data chahiye?", "Kitna detail chahiye?") — no technical jargon.
 
@@ -278,19 +304,45 @@ Both must ask, never assume: which school, then credentials (Bitwarden or typed 
 
 ### API endpoints for detail extraction
 
-All read-only POSTs, keyed by the teacher's encrypted `encId` (from list response):
+All read-only POSTs. Verified live; every endpoint below returns HTTP 200.
 
-| Endpoint | Section |
+| Endpoint | Key | Returns |
+|---|---|---|
+| `/teacher/registrationInfo` | `encId` | `data` dict, 55 fields — readable labels, masked identifiers |
+| `/teacher/viewTeacherEducationInfo` | `encId` | `preServicedata` **and** `inServicedata` |
+| `/teacher/viewTeacherProfessionalInfo` | `encId` | `data` list |
+| `/teacher/viewTeacherOtherInfo` | `encId` | `data` list |
+| `/teacher/viewTeacherTrainingInfo` | `encId` | `data` list |
+| `/teacher/getExistingServiceInfo` | `teacherEncryptedId` | `serviceInfo` list |
+
+Do NOT call `/teacher/getTeacherDetails`. It returns HTTP 500 `{"message": "Server Error"}`
+for every key tried (`teacherId`, `encId`, `tId`, `teacherEncryptedId`, `id`). It was removed
+from `DETAIL_ENDPOINTS`; re-adding it burns a request per teacher and pollutes the section
+error map with noise.
+
+### PITFALL — a section's rows live under a section-specific key
+
+Never assume every section returns its rows under `data`. Read the real key:
+
+| Section | Row key |
 |---|---|
-| `/teacher/registrationInfo` | registration, personal, address (55 cols) |
-| `/teacher/getTeacherDetails` | basic summary |
-| `/teacher/viewTeacherEducationInfo` | qualifications |
-| `/teacher/viewTeacherProfessionalInfo` | professional qualifications |
-| `/teacher/viewTeacherOtherInfo` | other information |
-| `/teacher/viewTeacherTrainingInfo` | training and language |
-| `/teacher/getExistingServiceInfo` | posting history |
+| educationInfo | `preServicedata` + `inServicedata` (two separate lists) |
+| professionalInfo / otherInfo / trainingInfo | `data` |
+| serviceInfo | `serviceInfo` |
+
+A generic row extractor that only looks for `serviceInfo` / `educationInfo` / `data` silently
+returns zero rows for Education, so the sheet prints `No records for this school` while the
+portal holds records. `No records` is a claim about your parser, not about the portal —
+confirm against the live endpoint before believing an empty section. Merge the two education
+lists and tag each row (`_serviceType` = `Pre-Service` / `In-Service`) so the distinction
+survives into the workbook.
 
 **Pitfall**: Issue every detail call through the live browser session so the portal's own auth headers apply. A plain `requests` session gets HTTP 401.
+
+`scripts/verify_endpoints.py` walks every endpoint above against one UDISE and prints HTTP
+status plus row count per section. Run it before believing an empty sheet, and after any
+portal change — it is what distinguishes a dead endpoint from a parser that reads the wrong
+key.
 
 ### Output sheets (full detail mode)
 
@@ -336,6 +388,26 @@ See `references/api-technical.md` for full field list, auth header mapping, and 
 Supporting scripts:
 - `esk_teacher_intercept.py` — intercepts browser API calls to discover payload structure
 - `esk_teacher_probe.py` — probes teacher API response structure
+
+## Repository documentation moves with the code
+
+`~/projects/eshikshakosh-automation` carries a documentation layer the user expects to match
+the code after any behaviour change. Update all of it in the same commit:
+
+| File | What it carries |
+|---|---|
+| `README.md` | top-level workflow, verified endpoint contract |
+| `TEACHER_REPORT.md` | export shapes, credential paths, security scope |
+| `modules/teacher/TEACHER_SCRIPTS.md` | script inventory, supported vs archived, review findings |
+| `.ai/CURRENT-STATE.md`, `docs/current-status.md` | what is verified right now |
+| `docs/HISTORY.md`, `docs/MEMORY.md` | dated change log, durable project facts |
+| `TASKS.md`, `PRD.md`, `brain/eshikshakosh-report/*` | task state and handoff context |
+| `skills/eshikshakosh-teacher/SKILL.md` | repo copy — keep byte-identical to the installed Hermes skill |
+
+After moving or deleting a script, grep every doc for its old path and for every endpoint
+name you changed — retired files and dead endpoints linger in READMEs long after the code has
+moved. Never commit workbooks, credentials or tokens: `*.xlsx` and `*.bak*` are gitignored,
+but confirm with `git diff --cached --name-only` before committing.
 
 ## Authorization guard
 

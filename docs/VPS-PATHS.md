@@ -26,7 +26,8 @@ Last reviewed: 2026-10-17. Canonical host: `oracle-server`; Linux user: `prashan
 | `/home/prashant/.local/bin/eshikshakosh-run` | Protected secret-injection wrapper |
 | `/home/prashant/.local/bin/secret-run` | Lower-level secret runtime invoked by wrapper |
 | `/home/prashant/exports/` | Teacher report output directory by default |
-| Repository root `Student_Details_*.xlsx` | Student runner currently writes/locates generated workbook here |
+| `/home/prashant/exports/student/` | Completed student reports from the maintained runner |
+| `/home/prashant/exports/student/archive/` | Existing historical student workbooks moved out of the source tree |
 | `/home/prashant/.local/share/` and user runtime paths | Do not move/modify unless separately inspected; not module source |
 | Vercel project root `web/` | Frontend deployment; `.vercel/` remains local/ignored |
 
