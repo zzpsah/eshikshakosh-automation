@@ -7,3 +7,7 @@ __pycache__/
 *.zip
 .ipynb_checkpoints/
 student_exports/
+# local backup / scratch copies
+*.bak*
+local-script/*_probe.py
+local-script/*_intercept.py
