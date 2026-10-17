@@ -5,16 +5,16 @@
 2. Run `git status --short` before any change.
 3. Keep generated workbooks outside Git.
 4. Treat `eshikshakosh_otr.py` as the safe/manual exporter.
-5. Treat `local-script/esk_otr_api.py` as private-runtime code.
+5. Treat `student-scripts/esk_otr_api.py` as private-runtime code.
 6. Do not implement teacher endpoints from guesses; observe real network/API behavior first.
 7. Verify read-only behavior before any portal automation extension.
 
 ## Safe checks
 ```bash
-bash -n local-script/install-hermes-skill.sh
-bash -n local-script/run_report.sh
-python3 -m py_compile eshikshakosh_otr.py local-script/esk_otr_api.py
-.venv/bin/python local-script/esk_otr_api.py --help
+bash -n local-script/archive/install-hermes-skill.sh
+bash -n local-script/archive/run_report.sh
+python3 -m py_compile eshikshakosh_otr.py student-scripts/esk_otr_api.py
+.venv/bin/python student-scripts/esk_otr_api.py --help
 git diff --check
 ```
 

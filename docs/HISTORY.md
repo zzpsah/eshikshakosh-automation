@@ -37,3 +37,23 @@ Completed the scoped report update: class/section/stream API filters, split-shee
 - Removed redundant approval/continue prompts for clear read-only report generation and same-private-chat delivery.
 - Local Hermes parsing regression passed without invoking report tools.
 - Repository update prepared for commit after local regression checks; real inbound natural-language WhatsApp regression remains a separate follow-up.
+
+## 2026-10-17 — Teacher export documented, dead endpoint removed, Education bug fixed
+
+- Added `local-script/esk_teacher_list.py` — API-based 28-column teacher roster that merges
+  readable labels from `/teacher/registrationInfo` with unmasked mobile/PAN/Aadhaar from the
+  list endpoint, and builds a single-cell combined current/permanent address.
+- Verified all seven teacher detail endpoints live against UMV Tetahali. `/teacher/getTeacherDetails`
+  returns HTTP 500 `Server Error` for every key (`teacherId`, `encId`, `tId`,
+  `teacherEncryptedId`, `id`) and was removed from `DETAIL_ENDPOINTS`.
+- Fixed a silent data-loss bug: `/teacher/viewTeacherEducationInfo` returns two lists
+  (`preServicedata`, `inServicedata`) that `_rows()` never looked for, so the Education sheet
+  always printed `No records for this school`. Both lists are now tagged and merged — the
+  Education sheet went from 2 rows to 18 rows on the same school.
+- Deleted the experimental `esk_teacher_unified.py` at the user's direction; the API list
+  path and the browser detail path stay separate.
+- Moved retired scripts (`esk_otr_api.py`, `run_report.sh`, `install-hermes-skill.sh`, teacher
+  probes) into `student-scripts/` and `local-script/archive/`, and updated README paths that
+  still pointed at the old locations.
+- Committed `esk_code_maps.py` / `esk_code_maps.json`, which earlier reviews had flagged as
+  untracked worktree-only helpers.

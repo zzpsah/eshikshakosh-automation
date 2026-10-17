@@ -40,7 +40,8 @@ AUTH_HEADER_NAMES = {'accept', 'content-type', 'authorization', 'accesstoken', '
 
 DETAIL_ENDPOINTS = [
     ('registrationInfo', '/teacher/registrationInfo', 'encId'),
-    ('teacherDetails', '/teacher/getTeacherDetails', 'teacherId'),
+    # '/teacher/getTeacherDetails' returns HTTP 500 "Server Error" for every key
+    # (teacherId / encId / tId / teacherEncryptedId) — verified 2026-10-17. Do not re-add.
     ('educationInfo', '/teacher/viewTeacherEducationInfo', 'encId'),
     ('professionalInfo', '/teacher/viewTeacherProfessionalInfo', 'encId'),
     ('otherInfo', '/teacher/viewTeacherOtherInfo', 'encId'),
@@ -64,6 +65,18 @@ def rows_of(payload):
     if isinstance(payload, list):
         return payload
     if isinstance(payload, dict):
+        # Education returns two separate lists; tag and merge so both reach the sheet.
+        pre = payload.get('preServicedata')
+        ins = payload.get('inServicedata')
+        if isinstance(pre, list) or isinstance(ins, list):
+            merged = []
+            for row in (pre or []):
+                if isinstance(row, dict):
+                    merged.append({**row, '_serviceType': 'Pre-Service'})
+            for row in (ins or []):
+                if isinstance(row, dict):
+                    merged.append({**row, '_serviceType': 'In-Service'})
+            return merged
         for key in ('serviceInfo', 'educationInfo', 'data'):
             value = payload.get(key)
             if isinstance(value, list):
@@ -247,6 +260,18 @@ def _rows(value):
     if isinstance(value, list):
         return value
     if isinstance(value, dict):
+        # Education returns two separate lists; tag and merge so both reach the sheet.
+        pre = value.get('preServicedata')
+        ins = value.get('inServicedata')
+        if isinstance(pre, list) or isinstance(ins, list):
+            merged = []
+            for row in (pre or []):
+                if isinstance(row, dict):
+                    merged.append({**row, '_serviceType': 'Pre-Service'})
+            for row in (ins or []):
+                if isinstance(row, dict):
+                    merged.append({**row, '_serviceType': 'In-Service'})
+            return merged
         for key in ('serviceInfo', 'educationInfo', 'data', 'list', 'records', 'result'):
             inner = value.get(key)
             if isinstance(inner, list):

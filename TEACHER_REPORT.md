@@ -3,12 +3,23 @@
 Read-only export of teacher details from e-ShikshaKosh to an Excel workbook. One script
 serves every school; nothing school-specific is hardcoded in the extractor.
 
-Two exports are available:
+Three exports are available:
 
-| Runner | Output | Use |
+| Runner / script | Output | Use |
 |---|---|---|
+| `local-script/esk_teacher_list.py` | 28-column roster, readable labels, combined address | quick roster / API path |
 | `run_teacher_report.sh` | list of teachers, 110 fields each | quick roster / Excel |
 | `run_teacher_detail_report.sh` | list **plus** per-teacher detail sections | full profile |
+
+`esk_teacher_list.py` is launched directly, not through a runner:
+
+```bash
+ESHIKSHAKOSH_TARGET_UDISE=10130106304 \
+  ~/.local/bin/eshikshakosh-run .venv/bin/python3 local-script/esk_teacher_list.py
+```
+
+The two methods stay deliberately separate — the API list export and the browser-based
+detail export are not merged into one script.
 
 ## Script inventory and maintenance notes
 
@@ -54,19 +65,39 @@ rather than being omitted.
 
 ### Detail endpoints (all read-only POSTs, keyed by the teacher's encrypted `encId`)
 
-| Endpoint | Section |
-|---|---|
-| `/teacher/registrationInfo` | registration, personal, address |
-| `/teacher/getTeacherDetails` | basic summary |
-| `/teacher/viewTeacherEducationInfo` | qualifications |
-| `/teacher/viewTeacherProfessionalInfo` | professional qualifications |
-| `/teacher/viewTeacherOtherInfo` | other information |
-| `/teacher/viewTeacherTrainingInfo` | training and language |
-| `/teacher/getExistingServiceInfo` | posting history |
+| Endpoint | Key | Section |
+|---|---|---|
+| `/teacher/registrationInfo` | `encId` | registration, personal, address (55 fields) |
+| `/teacher/viewTeacherEducationInfo` | `encId` | qualifications — returns `preServicedata` + `inServicedata` |
+| `/teacher/viewTeacherProfessionalInfo` | `encId` | professional qualifications |
+| `/teacher/viewTeacherOtherInfo` | `encId` | other information |
+| `/teacher/viewTeacherTrainingInfo` | `encId` | training and language |
+| `/teacher/getExistingServiceInfo` | `teacherEncryptedId` | posting history |
+
+`/teacher/getTeacherDetails` is **dead** — HTTP 500 `Server Error` for `teacherId`, `encId`,
+`tId`, `teacherEncryptedId` and `id`. It was removed from `DETAIL_ENDPOINTS` on 2026-10-17.
+Do not re-add it.
 
 The `encId` comes from the list response for that teacher. Every call is issued through
 the live browser session so the portal's own auth headers apply — a plain `requests`
 session gets HTTP 401.
+
+### Readable labels vs masked identifiers
+
+The list endpoint returns **raw numeric codes** for gender, marital status, nature of
+appointment, class category, social category, appointed subject and district/block — but it
+is the only endpoint that returns **unmasked** mobile, PAN and Aadhaar.
+
+`/teacher/registrationInfo` returns those same fields as **readable labels** (`Male`,
+`Single`, `School Teacher (BPSC)`, `GT (9-10)`, `General`, `Science (विज्ञान)`) — but it
+**masks** mobile (`XXXXXXX594`), PAN (`XXX-XXX-323K`) and Aadhaar (`XXXX-XXXX-6807`).
+
+`esk_teacher_list.py` merges both: labels from `registrationInfo`, unmasked identifiers from
+the list endpoint. Never take mobile/PAN/Aadhaar from `registrationInfo`, and never ship raw
+codes when the label is available.
+
+`gpfNo` / `uanNo` are `None` in the list endpoint and `--` in `registrationInfo` — genuinely
+absent in the portal. Write a blank cell, not the string `None`.
 
 ## Credential paths (both runners)
 
@@ -149,8 +180,11 @@ Rules the current extractors follow:
   created, edited, approved, or submitted.
 - Passwords, bearer tokens, encrypted IDs, and teacher PII are not printed to console.
 - Generated workbooks are stored outside Git under `~/exports` and restricted to mode `0600`.
-- `local-script/esk_teacher_browser_extract_school.py` (list) and
-  `local-script/esk_teacher_detail_extract.py` (detail) are the canonical runner targets.
+- `local-script/esk_teacher_list.py` (API list),
+  `local-script/esk_teacher_browser_extract_school.py` (browser list) and
+  `local-script/esk_teacher_detail_extract.py` (detail) are the canonical export targets.
+- The experimental `esk_teacher_unified.py` was deleted on 2026-10-17 at the user's
+  direction. The API list path and the browser detail path stay separate.
 - The legacy `esk_teacher_extract.py` / `esk_teacher_browser_extract.py` implementations are
   kept for reference only: their separate HTTP session received HTTP 401, and the old
   browser copy hardcoded the Tetahali school ID.

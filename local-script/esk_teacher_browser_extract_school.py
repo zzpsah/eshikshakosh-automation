@@ -31,6 +31,7 @@ from playwright.async_api import async_playwright
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 import esk_teacher_extract as legacy  # reuse the established Excel field/header mapping
+import esk_code_maps as code_maps
 
 BASE = 'https://eshikshakosh.bihar.gov.in'
 API_URL = 'https://eshikshakosh.bihar.gov.in:8443/teacher/viewTeacher'
@@ -209,10 +210,14 @@ async def main():
             school_slug = slug_from_schools(teachers) or slugify(expected_udise)
             output = out_dir / f'Teachers_{school_slug}_browser_{timestamp}.xlsx'
             legacy.export_to_excel(teachers, str(output), value_mappings=value_mappings)
+            # Replace numeric subject codes with the labels learned from the portal's own
+            # service-history records (see esk_code_maps.py).
+            mapped = code_maps.apply_to_workbook(str(output), 'Appointed Subject', code_maps.subject_map())
             os.chmod(output, 0o600)
             print(f'SCHOOL_NAME={teachers[0].get("schoolName", "")}')
             print(f'TEACHERS_EXPORTED={len(teachers)}')
             print(f'FIELDS_PER_RECORD={len(teachers[0])}')
+            print(f'SUBJECT_CODES_MAPPED={mapped}')
             print(f'WORKBOOK={output}')
             print('SOURCE=authenticated Playwright browser request/response; read-only')
         finally:

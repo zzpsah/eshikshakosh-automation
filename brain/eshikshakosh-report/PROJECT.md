@@ -13,7 +13,7 @@ Maintain read-only student report extraction workflows for e-ShikshaKosh with tw
 - no portal mutation.
 
 ### Private local automation
-- `local-script/esk_otr_api.py`
+- `student-scripts/esk_otr_api.py`
 - used only on the authorized private Oracle/local runtime;
 - credentials supplied through the protected runtime secret wrapper/environment;
 - generated workbooks remain local/private and are ignored by Git;

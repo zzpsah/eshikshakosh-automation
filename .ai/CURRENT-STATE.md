@@ -1,16 +1,39 @@
 # Current State
 
-Last documented: 2026-09-27
+Last documented: 2026-10-17
+
+## Teacher export — 2026-10-17
+
+Two deliberately separate methods, both read-only:
+
+| Script | Method | Output |
+|---|---|---|
+| `local-script/esk_teacher_list.py` | API (list + per-teacher `registrationInfo`) | 28-column roster, readable labels, combined address |
+| `local-script/esk_teacher_detail_extract.py` | Browser / Playwright | 7-sheet full profile |
+
+Verified live against UMV Tetahali (16 teachers):
+
+- All seven detail endpoints return HTTP 200. `/teacher/getTeacherDetails` returns HTTP 500
+  `Server Error` for every key tried and was **removed** from the extractor.
+- The list endpoint returns raw numeric codes but unmasked mobile/PAN/Aadhaar;
+  `/teacher/registrationInfo` returns readable labels but masked identifiers. The list export
+  merges both.
+- **Education data was being silently dropped**: the endpoint returns `preServicedata` +
+  `inServicedata`, which `_rows()` never looked for. Fixed — the Education sheet went from
+  `No records for this school` to 18 rows on the same school.
+- `gpfNo` / `uanNo` are genuinely absent in the portal for these schools.
+- `esk_teacher_unified.py` deleted at the user's direction; the two methods stay separate.
 
 ## Verified local workflow
 - Repo-local `.venv` is used.
 - Playwright and `nest_asyncio` are installed for the local path.
 - Bitwarden-backed credential injection was verified without intentionally displaying secret values.
-- `local-script/esk_otr_api.py` generated a real current-session workbook.
-- Verified summary from that run: 220 students; 2 OTR registered; 218 pending; 219 Aadhaar values present; 220 bank accounts; 220 mother names.
+- Student OTR report generation verified. Verified summary from that run: 220 students; 2 OTR registered; 218 pending; 219 Aadhaar values present; 220 bank accounts; 220 mother names.
 - Academic session defaults automatically using an April-March boundary.
 - Hermes student-report execution is pinned to `~/.local/bin/eshikshakosh-report`.
 - Telegram and WhatsApp same-private-chat Excel attachment delivery are verified.
+- Student OTR code now lives in `student-scripts/esk_otr_api.py`; the retired shell wrappers
+  (`run_report.sh`, `install-hermes-skill.sh`) are under `local-script/archive/`.
 
 ## Known issue
 Hermes messaging exposed internal prompt/tool-routing text in a user-visible reply. Request-dump inspection showed the strings existed in normal internal instructions/tool metadata. A fresh-session reset removed the obvious raw dump once, but the issue is not considered closed.

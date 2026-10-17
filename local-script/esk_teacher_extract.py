@@ -422,10 +422,15 @@ def export_to_excel(teachers, filename, value_mappings=None):
     for t in teachers:
         all_keys.update(t.keys())
 
-    # Build final column order: ONLY priority fields (no remaining keys)
-    # Include computed fields (prefixed with _) even if not in raw data
-    priority_keys = [k for k in priority_fields if k in all_keys or k.startswith('_')]
-    all_columns = priority_keys
+    # Final output format: 28 curated columns (user-specified order)
+    all_columns = [
+        "Sr No", "teacherLoginCode", "teacherName", "gender", "maritalStatus", "DOB",
+        "teacherTitle", "natureOfAppointmt", "serviceJoiningDt", "joiningCurrentSchoolDt",
+        "classCategory", "appointedSubject", "mobile", "teacherEmail", "panNo",
+        "employeeCode", "pranNo", "gpfNo", "uanNo", "aadhaarNo", "socialCategory",
+        "pDomicileNumber", "motherName", "fatherName", "_currentAddress", "_permanentAddress",
+        "schoolName", "schoolUdiseCode"
+    ]
 
     # Meaningful header mapping
     HEADER_MAP = {
@@ -624,6 +629,8 @@ def export_to_excel(teachers, filename, value_mappings=None):
                 value = combine_address(teacher, PERMANENT_ADDRESS_FIELDS)
             elif key == "_currentAddress":
                 value = combine_address(teacher, CURRENT_ADDRESS_FIELDS)
+            elif key == "Sr No":
+                value = row_idx - 1  # Sequential number (row 2 = 1, row 3 = 2, ...)
             else:
                 value = teacher.get(key, "")
                 if value is None:

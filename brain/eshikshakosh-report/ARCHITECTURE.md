@@ -11,10 +11,10 @@ Hermes/private command
 protected secret wrapper/environment
       |
       v
-local-script/run_report.sh
+local-script/archive/run_report.sh
       |
       v
-local-script/esk_otr_api.py
+student-scripts/esk_otr_api.py
       |
       v
 read-only portal/API workflow -> private local workbook

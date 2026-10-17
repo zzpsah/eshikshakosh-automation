@@ -36,15 +36,25 @@ Open `Eshikshakosh_OTR.ipynb`, upload `eshikshakosh_otr.py` when prompted, then 
 
 ## Local Hermes/VPS workflow
 
-The VPS integration now uses a separate local automation path under `local-script/`. This path is intentionally distinct from the manual-token Colab/CLI workflow described above.
+The VPS integration now uses a separate local automation path under `local-script/` (teacher)
+and `student-scripts/` (student OTR). This path is intentionally distinct from the
+manual-token Colab/CLI workflow described above.
 
 Key local components:
 
-- `local-script/esk_otr_api.py` — read-only Playwright/API report generator that can include unmasked student details.
-- `local-script/run_report.sh` — validated local runner that uses the repo virtual environment and emits `REPORT_READY=<path>` on success.
-- `local-script/install-hermes-skill.sh` — installs the Hermes skill and `~/.local/bin/eshikshakosh-report` wrapper.
-- `skills/eshikshakosh-otr/SKILL.md` — same-channel Telegram/WhatsApp workflow and strict execution route.
-- `requirements.txt` — includes the local Playwright and `nest-asyncio` runtime dependencies.
+- `student-scripts/esk_otr_api.py` — read-only Playwright/API student report generator that can include unmasked student details.
+- `local-script/esk_teacher_list.py` — read-only teacher list export (28 columns, readable labels, combined address).
+- `local-script/esk_teacher_detail_extract.py` — read-only 7-sheet teacher profile export.
+- `local-script/run_teacher_report.sh` / `local-script/run_teacher_detail_report.sh` — validated teacher runners.
+- `local-script/esk_schools.py` — school alias / UDISE / Bitwarden-key registry.
+- `local-script/esk_code_maps.py` + `esk_code_maps.json` — learned code-to-label maps.
+- `skills/eshikshakosh-otr/SKILL.md` and `skills/eshikshakosh-teacher/SKILL.md` — same-channel Telegram/WhatsApp workflows and strict execution routes.
+- `local-script/archive/` — retired scripts kept for reference only. Nothing there is a supported entry point.
+
+Earlier documentation referenced `local-script/esk_otr_api.py`, `local-script/run_report.sh`
+and `local-script/install-hermes-skill.sh` at their old paths. Those files moved:
+`esk_otr_api.py` now lives in `student-scripts/`, and the shell wrappers are retired under
+`local-script/archive/`.
 
 The local report path is read-only with respect to portal data, but its workbook can contain unmasked Aadhaar, bank-account, mobile, and related student information. Generated workbooks are private operational artifacts and must not be committed to GitHub.
 
@@ -186,3 +196,44 @@ For live EP integration:
 - credentials are passed to the exporter through environment variables rather than CLI arguments;
 - the UDISE app binds the temporary credential record to the active UDISE session;
 - after a successful source export, the password is discarded and the workbook becomes the EP source.
+
+## Teacher reports — 17 October 2026
+
+Teacher export is a separate workflow from the student OTR path. Two scripts, deliberately
+kept apart — one API-based list, one browser-based full profile:
+
+| Script | Method | Output |
+|---|---|---|
+| `local-script/esk_teacher_list.py` | API (list + per-teacher `registrationInfo`) | 28-column roster with readable labels and combined address |
+| `local-script/esk_teacher_detail_extract.py` | Browser / Playwright | 7-sheet full profile |
+
+Full documentation: [TEACHER_REPORT.md](TEACHER_REPORT.md) and
+[local-script/TEACHER_SCRIPTS.md](local-script/TEACHER_SCRIPTS.md).
+
+Key contract, verified live on 17 October 2026:
+
+- The list endpoint returns **raw numeric codes** for gender, marital status, nature of
+  appointment, class category, social category, appointed subject, district and block — but
+  it is the only endpoint that returns **unmasked** mobile, PAN and Aadhaar.
+- `/teacher/registrationInfo` returns those same fields as **readable labels**, but **masks**
+  mobile, PAN and Aadhaar. Exports must merge: labels from `registrationInfo`, unmasked
+  identifiers from the list endpoint.
+- `/teacher/getTeacherDetails` is **dead** — HTTP 500 `Server Error` for every key tried. It
+  has been removed from the detail extractor. Do not re-add it.
+- `gpfNo` and `uanNo` are genuinely absent in the portal for these schools (`None` / `--`).
+  Leave the cell blank rather than writing the string `None`.
+
+Endpoints that work, and what they return:
+
+| Endpoint | Key | Result |
+|---|---|---|
+| `/teacher/viewTeacher` | `schoolUdiseCode` | roster page |
+| `/teacher/registrationInfo` | `encId` | 55-field dict (labels, masked identifiers) |
+| `/teacher/viewTeacherEducationInfo` | `encId` | `preServicedata` + `inServicedata` |
+| `/teacher/viewTeacherProfessionalInfo` | `encId` | `data` list |
+| `/teacher/viewTeacherOtherInfo` | `encId` | `data` list |
+| `/teacher/viewTeacherTrainingInfo` | `encId` | `data` list |
+| `/teacher/getExistingServiceInfo` | `teacherEncryptedId` | `serviceInfo` list |
+
+Read-only: login, search, fetch and local Excel export only. No teacher record is created,
+edited, approved or submitted.

@@ -16,8 +16,8 @@ Telegram/WhatsApp request
 -> identify authorized school/requester
 -> Bitwarden-backed credential injection
 -> ~/.local/bin/eshikshakosh-report
--> local-script/run_report.sh
--> .venv/bin/python local-script/esk_otr_api.py
+-> local-script/archive/run_report.sh
+-> .venv/bin/python student-scripts/esk_otr_api.py
 -> portal login/token capture
 -> student list + studentInfo reads
 -> private .xlsx
