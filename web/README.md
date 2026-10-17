@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# School Data Desk — e-ShikshaKosh workflow portal
 
-## Getting Started
+This is the Next.js frontend deployed as the Vercel project `eshikshakosh`.
 
-First, run the development server:
+## Current purpose
+
+The website is a **workflow guide/command builder**, not yet a connected report-generation service. It lists the supported student and teacher report workflows and lets an operator copy the appropriate command for execution on the authorised Oracle VPS.
+
+- Student details: `~/.local/bin/eshikshakosh-report`
+- Teacher roster: `local-script/run_teacher_report.sh --school Sahaspur`
+- Full teacher profile: `local-script/run_teacher_detail_report.sh --school Sahaspur`
+
+Teacher commands use the existing school registry and protected credential wrapper. Run teacher commands from the `eshikshakosh-automation` repository root on the VPS.
+
+## Important integration boundary
+
+The current Next.js app has no API route or authenticated connection to the Oracle VPS runner. Do not claim that clicking a button generates or downloads a report. This frontend intentionally makes the limitation visible and does not ask for portal passwords, student data, teacher data, or tokens.
+
+To enable in-browser generation in a future change, implement a narrowly scoped authenticated server-side job API with access control, school-scope validation, safe job status polling, and private file delivery. Do not expose VPS credentials or invoke shell commands directly from a browser. Keep the existing report scripts as the source of truth.
+
+## Local development and verification
 
 ```bash
+npm ci
+npm run lint
+npm run build
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The UI is responsive and supports keyboard-accessible workflow selection. It does not display personal records. Generated Excel files remain on the existing report workflow and must not be committed to this repository.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The linked project metadata is in `.vercel/project.json` (keep that local configuration out of Git). The production project was identified as `eshikshakosh`, with URL `https://eshikshakosh.vercel.app`. Vercel API inspection from the current connector returned a scope authorization error; verify deployment status using the linked Vercel CLI/account or dashboard before treating a new release as live.

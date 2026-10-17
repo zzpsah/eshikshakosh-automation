@@ -10,6 +10,14 @@ Two exports are available:
 | `run_teacher_report.sh` | list of teachers, 110 fields each | quick roster / Excel |
 | `run_teacher_detail_report.sh` | list **plus** per-teacher detail sections | full profile |
 
+## Script inventory and maintenance notes
+
+See [local-script/TEACHER_SCRIPTS.md](local-script/TEACHER_SCRIPTS.md) for the current script inventory, canonical entry points, legacy/diagnostic scripts, safe usage, and review findings.
+
+## Vercel workflow portal
+
+Portal: [https://eshikshakosh.vercel.app](https://eshikshakosh.vercel.app). The frontend is currently a command guide for the existing Oracle VPS workflows; it does not yet generate or deliver reports directly. See [web/README.md](web/README.md) for the current integration boundary and safe next steps.
+
 ## List export
 
 ```bash
