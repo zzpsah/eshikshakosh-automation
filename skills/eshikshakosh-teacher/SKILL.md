@@ -28,6 +28,21 @@ list, or a teacher Excel export from the e-ShikshaKosh portal.
 - `service history of teachers`
 - `Teachers_*.xlsx`
 
+## Default behavior — list export unless detail is asked for
+
+Default to the **list export** (`run_teacher_report.sh`). Do NOT run the detail export
+(`run_teacher_detail_report.sh`) unless the user explicitly asks for details, education,
+qualifications, training, or service history.
+
+| Request | Run |
+|---|---|
+| `teacher list`, `teachers ka data`, `teacher report`, `Teachers_*.xlsx` | list export |
+| `teacher details`, `full detail`, `education`, `qualification`, `training`, `service history` | detail export |
+
+The list path is the light one: a single intercepted `/teacher/viewTeacher` call. The
+detail path opens a per-teacher page and calls seven endpoints per teacher, so it is
+slower and heavier — that is why it stays opt-in.
+
 ## Two exports
 
 | Runner | Output | Use |
