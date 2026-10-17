@@ -8,8 +8,8 @@ Two deliberately separate methods, both read-only:
 
 | Script | Method | Output |
 |---|---|---|
-| `local-script/esk_teacher_list.py` | API (list + per-teacher `registrationInfo`) | 28-column roster, readable labels, combined address |
-| `local-script/esk_teacher_detail_extract.py` | Browser / Playwright | 7-sheet full profile |
+| `modules/teacher/scripts/esk_teacher_list.py` | API (list + per-teacher `registrationInfo`) | 28-column roster, readable labels, combined address |
+| `modules/teacher/scripts/esk_teacher_detail_extract.py` | Browser / Playwright | 7-sheet full profile |
 
 Verified live against UMV Tetahali (16 teachers):
 
@@ -32,9 +32,9 @@ Verified live against UMV Tetahali (16 teachers):
 - Academic session defaults automatically using an April-March boundary.
 - Hermes student-report execution is pinned to `~/.local/bin/eshikshakosh-report`.
 - Telegram and WhatsApp same-private-chat Excel attachment delivery are verified.
-- Student OTR code now lives in `student-scripts/esk_otr_api.py`. `local-script/run_report.sh`
+- Student OTR code now lives in `modules/student/scripts/esk_otr_api.py`. `modules/student/run_report.sh`
   stays a live runner and was repointed at that new path; `install-hermes-skill.sh` is retired
-  under `local-script/archive/`.
+  under `modules/teacher/archive/`.
 - **Student report path verified working after the move** — a live run through
   `~/.local/bin/eshikshakosh-report` produced a fresh `Student_Details_..._All.xlsx`.
 

@@ -1,27 +1,21 @@
 #!/usr/bin/env bash
-# Bitwarden-backed, browser-authenticated read-only e-ShikshaKosh teacher export.
+# Bitwarden-backed, browser-authenticated read-only e-ShikshaKosh teacher DETAIL export.
 #
-# Works for any school. Credentials, target UDISE and output directory all come from the
-# environment — nothing school-specific is hardcoded here.
+# Same credential paths as run_teacher_report.sh; the difference is the extractor, which
+# also pulls each teacher's registration, education, professional, other, training and
+# service-history sections.
 #
-#   Registered school (recommended):
-#     local-script/run_teacher_report.sh --school Sahaspur
-#     local-script/run_teacher_report.sh --school 10130106304
-#     local-script/run_teacher_report.sh --list
+#   modules/teacher/run_teacher_detail_report.sh --school Sahaspur
+#   modules/teacher/run_teacher_detail_report.sh --udise 10130106304 --username <login> --password <pw>
+#   ESHIKSHAKOSH_DETAIL_LIMIT=2 modules/teacher/run_teacher_detail_report.sh --school Sahaspur   # smoke test
 #
-#   Unregistered school — one-time credentials, nothing saved:
-#     local-script/run_teacher_report.sh --udise 10130106304 --username 10130106304 --password 'xxx'
-#     ESHIKSHAKOSH_USERNAME=... ESHIKSHAKOSH_PASSWORD=... \
-#       local-script/run_teacher_report.sh --udise 10130106304
-#
-# Secret values are never printed. A one-time password is used for this run only and is
-# never written to disk, memory, Git, or logs.
+# Secret values are never printed.
 set -euo pipefail
 
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 PY="${REPO}/.venv/bin/python"
-EXTRACTOR="${REPO}/local-script/esk_teacher_browser_extract_school.py"
-REGISTRY="${REPO}/local-script/esk_schools.py"
+EXTRACTOR="${REPO}/modules/teacher/scripts/esk_teacher_detail_extract.py"
+REGISTRY="${REPO}/shared/esk_schools.py"
 cd "$REPO"
 
 [[ -x "$PY" ]] || { echo "ERROR: virtualenv python missing: $PY" >&2; exit 2; }
@@ -32,6 +26,8 @@ LIST_ONLY=0
 UDISE_ARG=""
 USERNAME_ARG=""
 PASSWORD_ARG=""
+USER_KEY_ARG=""
+PASS_KEY_ARG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -42,14 +38,10 @@ while [[ $# -gt 0 ]]; do
     --user-key)    USER_KEY_ARG="${2:-}"; shift 2 ;;
     --pass-key)    PASS_KEY_ARG="${2:-}"; shift 2 ;;
     --list|-l)     LIST_ONLY=1; shift ;;
-    -h|--help)     sed -n '2,14p' "$0"; exit 0 ;;
+    -h|--help)     sed -n '2,10p' "$0"; exit 0 ;;
     *) echo "ERROR: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-
-# Credential keys are resolved lazily, only when no direct credentials were supplied.
-USER_KEY_ARG="${USER_KEY_ARG:-}"
-PASS_KEY_ARG="${PASS_KEY_ARG:-}"
 
 if [[ "$LIST_ONLY" == "1" ]]; then
   [[ -f "$REGISTRY" ]] || { echo "ERROR: school registry missing: $REGISTRY" >&2; exit 2; }
@@ -65,8 +57,7 @@ PYEOF
   exit 0
 fi
 
-# ---- Path A: direct credentials (registered or not) -------------------------
-# Nothing is stored; the values live only in this process environment.
+# Path A: direct one-time credentials (registered school or not)
 if [[ -n "$USERNAME_ARG" || -n "$PASSWORD_ARG" ]]; then
   if [[ -z "$USERNAME_ARG" || -z "$PASSWORD_ARG" ]]; then
     echo "ERROR: --username and --password must be given together" >&2
@@ -91,7 +82,7 @@ if [[ -n "${ESHIKSHAKOSH_USERNAME:-}" && -n "${ESHIKSHAKOSH_PASSWORD:-}" ]]; the
   exec "$PY" -u "$EXTRACTOR"
 fi
 
-# ---- Path B: Bitwarden-backed (registered school, or explicit key names) ----
+# Path B: Bitwarden-backed (registered school, or explicit key names)
 if [[ -n "$USER_KEY_ARG" || -n "$PASS_KEY_ARG" ]]; then
   if [[ -z "$UDISE_ARG" || -z "$USER_KEY_ARG" || -z "$PASS_KEY_ARG" ]]; then
     echo "ERROR: --user-key/--pass-key require --udise as well" >&2

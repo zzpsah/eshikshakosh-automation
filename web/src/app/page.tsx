@@ -18,14 +18,14 @@ const reports: Record<ReportKind, { title: string; eyebrow: string; description:
     title: "Teacher roster",
     eyebrow: "TEACHER REPORT",
     description: "Export the teacher list and available profile fields for one registered school.",
-    command: (school) => `local-script/run_teacher_report.sh --school ${school}`,
+    command: (school) => `modules/teacher/run_teacher_report.sh --school ${school}`,
     steps: ["Open the eshikshakosh-automation project on the Oracle VPS.", "Run the command below from the repository root.", "The timestamped Excel workbook is saved in ~/exports."],
   },
   profile: {
     title: "Full teacher profiles",
     eyebrow: "TEACHER DETAIL REPORT",
     description: "Export teacher registration details, education, professional qualifications, other information, training and service history.",
-    command: (school) => `local-script/run_teacher_detail_report.sh --school ${school}`,
+    command: (school) => `modules/teacher/run_teacher_detail_report.sh --school ${school}`,
     steps: ["Open the eshikshakosh-automation project on the Oracle VPS.", "Run the command below from the repository root.", "Check the workbook sheets and confirm empty sections against the portal before drawing conclusions."],
   },
 };

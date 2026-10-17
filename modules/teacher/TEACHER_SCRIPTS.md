@@ -16,12 +16,12 @@ Use these two runners for normal work. Both use the school registry and protecte
 Commands from the repository root:
 
 ```bash
-local-script/run_teacher_report.sh --list
-local-script/run_teacher_report.sh --school Sahaspur
-local-script/run_teacher_detail_report.sh --school Sahaspur
+modules/teacher/run_teacher_report.sh --list
+modules/teacher/run_teacher_report.sh --school Sahaspur
+modules/teacher/run_teacher_detail_report.sh --school Sahaspur
 
 # Safe small detail smoke test (only two teachers)
-ESHIKSHAKOSH_DETAIL_LIMIT=2 local-script/run_teacher_detail_report.sh --school Sahaspur
+ESHIKSHAKOSH_DETAIL_LIMIT=2 modules/teacher/run_teacher_detail_report.sh --school Sahaspur
 ```
 
 For one-time credentials, follow the runner's usage comments. Never put real passwords into documentation, shell history, source files, or Git.
@@ -33,10 +33,10 @@ export is normally run:
 
 ```bash
 ESHIKSHAKOSH_TARGET_UDISE=10160203806 \
-  ~/.local/bin/eshikshakosh-run .venv/bin/python3 local-script/esk_teacher_list.py
+  ~/.local/bin/eshikshakosh-run .venv/bin/python3 modules/teacher/scripts/esk_teacher_list.py
 
 ESHIKSHAKOSH_TARGET_UDISE=10160203806 \
-  ~/.local/bin/eshikshakosh-run .venv/bin/python3 local-script/esk_teacher_detail_extract.py
+  ~/.local/bin/eshikshakosh-run .venv/bin/python3 modules/teacher/scripts/esk_teacher_detail_extract.py
 ```
 
 `ESHIKSHAKOSH_TARGET_UDISE` is mandatory for both. Neither script has a default school.
@@ -56,7 +56,7 @@ ESHIKSHAKOSH_TARGET_UDISE=10160203806 \
 
 ## Archived experiments
 
-The following files are under `local-script/archive/` and are historical reference, not supported entry points:
+The following files are under `modules/teacher/archive/` and are historical reference, not supported entry points:
 
 - `esk_teacher_api.py`
 - `esk_teacher_intercept.py`
@@ -68,16 +68,16 @@ The following files are under `local-script/archive/` and are historical referen
 - `esk_teacher_mapping_extract.py`
 - `install-hermes-skill.sh`, `telegram_report_test.sh` — retired shell wrappers
 
-`local-script/run_report.sh` is **not** archived: it is the live student-report runner that
+`modules/student/run_report.sh` is **not** archived: it is the live student-report runner that
 `~/.local/bin/eshikshakosh-report` executes. It was briefly moved into `archive/` on
-2026-10-17 and that broke the student export path; it has been restored to `local-script/`
-and its `APP` path repointed at `student-scripts/esk_otr_api.py`.
+2026-10-17 and that broke the student export path; it has been restored to `modules/`
+and its `APP` path repointed at `modules/student/scripts/esk_otr_api.py`.
 
 The experimental `esk_teacher_unified.py` (a proposed one-script list + detail implementation)
 was **deleted on 2026-10-17** at the user's direction. Do not recreate it: the API list and the
 browser detail extractor stay separate.
 
-Historical snapshots, if retained, belong under `local-script/archive/snapshots/`; they are not entry points.
+Historical snapshots, if retained, belong under `modules/teacher/archive/snapshots/`; they are not entry points.
 
 ## Data flow
 

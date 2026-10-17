@@ -5,7 +5,7 @@
 - Project uses a repo-local `.venv`.
 - Playwright and `nest_asyncio` are installed for the local flow.
 - Bitwarden-backed credential injection has been verified without intentionally displaying secret values.
-- Student OTR code lives in `student-scripts/esk_otr_api.py`; it produced a real current-session workbook.
+- Student OTR code lives in `modules/student/scripts/esk_otr_api.py`; it produced a real current-session workbook.
 - Verified run summary: 220 students; 2 OTR registered; 218 pending; 219 Aadhaar values present; 220 bank accounts; 220 mother names.
 - Session defaults automatically using Apr-Mar boundaries.
 - Hermes skill is pinned to the verified local runner.
@@ -13,10 +13,10 @@
 - A messaging internal-trace echo issue was observed; a fresh session reset removed the obvious raw dump once, but the issue is not considered closed.
 
 ## Teacher export — 2026-10-17
-- `local-script/esk_teacher_list.py` — API-based 28-column roster; merges readable labels from
+- `modules/teacher/scripts/esk_teacher_list.py` — API-based 28-column roster; merges readable labels from
   `/teacher/registrationInfo` with unmasked mobile/PAN/Aadhaar from the list endpoint, and
   builds a single-cell combined address. Verified: 16 teachers at UMV Tetahali.
-- `local-script/esk_teacher_detail_extract.py` — browser-based 7-sheet profile. Verified:
+- `modules/teacher/scripts/esk_teacher_detail_extract.py` — browser-based 7-sheet profile. Verified:
   16 teachers, 6 sections each.
 - The API list path and the browser detail path stay **separate** by explicit user directive.
 - `/teacher/getTeacherDetails` is dead (HTTP 500 for every key) and was removed.

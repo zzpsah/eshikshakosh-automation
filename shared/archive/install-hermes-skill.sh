@@ -25,7 +25,7 @@ cat > "$WRAPPER" <<'EOF'
 set -euo pipefail
 
 REPO="${HOME}/projects/eshikshakosh-automation"
-RUNNER="${REPO}/local-script/run_report.sh"
+RUNNER="${REPO}/modules/student/run_report.sh"
 YEAR=""
 MODE="full"
 CLASS=""
@@ -63,7 +63,7 @@ exec "${HOME}/.local/bin/eshikshakosh-run" "$RUNNER"
 EOF
 
 chmod 700 "$WRAPPER"
-chmod 700 "$REPO/local-script/run_report.sh"
+chmod 700 "$REPO/modules/student/run_report.sh"
 
 echo "SKILL_INSTALLED=$SKILL_DST/SKILL.md"
 echo "COMMAND_INSTALLED=$WRAPPER"

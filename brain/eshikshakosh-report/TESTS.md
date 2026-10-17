@@ -3,10 +3,10 @@
 Last verified: 2026-10-02.
 
 Passed:
-- `bash -n local-script/archive/install-hermes-skill.sh`;
-- `bash -n local-script/run_report.sh`;
-- `python3 -m py_compile eshikshakosh_otr.py student-scripts/esk_otr_api.py`;
-- `.venv/bin/python student-scripts/esk_otr_api.py --help`;
+- `bash -n modules/teacher/archive/install-hermes-skill.sh`;
+- `bash -n modules/student/run_report.sh`;
+- `python3 -m py_compile eshikshakosh_otr.py modules/student/scripts/esk_otr_api.py`;
+- `.venv/bin/python modules/student/scripts/esk_otr_api.py --help`;
 - `git diff --check`.
 
 Not performed during this reconciliation:

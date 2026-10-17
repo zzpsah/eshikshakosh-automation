@@ -93,7 +93,7 @@ Filtered requests are fetched at API level so only the requested student list is
 4. For a known school with stored Bitwarden credentials, use the stored credentials through the verified `eshikshakosh-run` launcher.
 5. For an unknown school, ask for the portal user ID / UDISE and a one-time password. Do not store that password in memory, Git, logs, or a config file.
 6. Use the current academic session automatically (April-March). Do not ask for the year unless the user explicitly requests a different session.
-7. Generate the private Excel report with `student-scripts/esk_otr_api.py`.
+7. Generate the private Excel report with `modules/student/scripts/esk_otr_api.py`.
 8. Send the resulting `.xlsx` file directly back to the requester as a document attachment.
 9. Do not paste Aadhaar, bank account, mobile number, password, token, cookie, or other sensitive values into chat text.
 10. Do not upload generated reports to GitHub.
@@ -127,7 +127,7 @@ Expected Python runtime:
 Expected report script:
 
 ```text
-~/projects/eshikshakosh-automation/student-scripts/esk_otr_api.py
+~/projects/eshikshakosh-automation/modules/student/scripts/esk_otr_api.py
 ```
 
 ## Dependency setup
@@ -148,7 +148,7 @@ For a school whose credentials are already mapped by `eshikshakosh-run`:
 ```bash
 cd ~/projects/eshikshakosh-automation
 
-eshikshakosh-run .venv/bin/python student-scripts/esk_otr_api.py \
+eshikshakosh-run .venv/bin/python modules/student/scripts/esk_otr_api.py \
   --udise "$ESHIKSHAKOSH_USERNAME" \
   --password "$ESHIKSHAKOSH_PASSWORD"
 ```

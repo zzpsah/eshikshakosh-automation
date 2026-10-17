@@ -1,240 +1,50 @@
 # e-ShikshaKosh Automation
 
-Private, read-only Python and Google Colab project for producing a reviewed e-ShikshaKosh student-report workbook.
+Private, read-only automation for student OTR and teacher reports. The repository is organized by functional module so future modules can be added without mixing scripts.
 
-## What is included
+## Modules
 
-- `eshikshakosh_otr.py` — safe command-line/Colab script.
-- `Eshikshakosh_OTR.ipynb` — Colab launcher for the script.
-- `requirements.txt` — minimal runtime dependencies.
+| Module | Purpose | Entry point | Documentation |
+|---|---|---|---|
+| Student | Student OTR exports and preserved Colab notebooks | `modules/student/run_report.sh` (VPS launcher: `~/.local/bin/eshikshakosh-report`) | [Student README](modules/student/README.md) |
+| Teacher | Teacher roster and full-profile exports | `modules/teacher/run_teacher_report.sh`, `modules/teacher/run_teacher_detail_report.sh` | [Teacher README](modules/teacher/README.md) · [Script inventory](modules/teacher/TEACHER_SCRIPTS.md) |
+| Shared | School registry, credential wrapper config, common support files | `shared/` | [VPS path map](docs/VPS-PATHS.md) |
+| Web portal | Vercel Next.js command guide (not yet a report backend) | `web/` | [Web README](web/README.md) |
 
-## Safety and data handling
+## Oracle VPS canonical paths
 
-This project is deliberately read-only. It does not submit, edit, certify, or delete portal records. Login is manual: enter a short-lived Bearer token only into the active runtime when prompted. Never commit tokens, cookies, passwords, OTPs, exported workbooks, Aadhaar numbers, bank-account numbers, or other student data.
+Repository: `/home/prashant/projects/eshikshakosh-automation` (`~/projects/eshikshakosh-automation`).
 
-The original supplied draft was not published unchanged because it disabled TLS verification, attempted to automate a CAPTCHA-like challenge, and requested unmasked Aadhaar/bank data. This maintained version uses normal TLS verification, does not automate CAPTCHA or password login, and supports user-selected `full` or `masked` export mode; default is `full`.
+- Student code and notebook files: `modules/student/`
+- Teacher code and teacher reports: `modules/teacher/`
+- Shared school registry/config: `shared/`
+- Private student launcher: `/home/prashant/.local/bin/eshikshakosh-report`
+- Protected secret wrapper: `/home/prashant/.local/bin/eshikshakosh-run`
+- Python environment: `/home/prashant/projects/eshikshakosh-automation/.venv/`
+- Teacher workbook exports: `/home/prashant/exports/`
+- Current student runner writes `Student_Details_*.xlsx` to the repository root. Existing generated workbooks are private operational data, not source files.
+- Vercel project files: `web/`; local `.vercel/` metadata must not be committed.
 
-## Run locally
+See [docs/VPS-PATHS.md](docs/VPS-PATHS.md) for the full path map and how to add future modules.
 
-```powershell
-python -m pip install -r requirements.txt
-python eshikshakosh_otr.py
+## Safety
+
+All maintained report workflows are read-only against e-ShikshaKosh. Do not commit credentials, tokens, student/teacher personal data, exported workbooks, or screenshots. Secrets must be supplied by the existing protected runtime. Full exports may contain unmasked identifiers; keep them private and share only via authorised channels.
+
+## Useful commands
+
+```bash
+cd ~/projects/eshikshakosh-automation
+modules/teacher/run_teacher_report.sh --list
+modules/teacher/run_teacher_report.sh --school Sahaspur
+modules/teacher/run_teacher_detail_report.sh --school Sahaspur
+~/.local/bin/eshikshakosh-report --class 10 --mode masked
 ```
 
-The script asks for the academic year and a valid short-lived Bearer token. It writes a timestamped workbook locally. Review it before any human workflow that uses its contents.
+For a teacher-detail smoke test, set `ESHIKSHAKOSH_DETAIL_LIMIT=2` before invoking the detail runner. Avoid full live exports for routine path checks.
 
-## Run in Google Colab
+## Other project documentation
 
-Open `Eshikshakosh_OTR.ipynb`, upload `eshikshakosh_otr.py` when prompted, then run the final cell. The token stays in that Colab runtime only.
-
-## Verification status
-
-- Source structure: checked locally.
-- Notebook JSON: checked locally.
-- Live e-ShikshaKosh authentication and API response shape: not tested in this repository.
-- Portal mutation: none implemented or attempted.
-
-## Local Hermes/VPS workflow
-
-The VPS integration now uses a separate local automation path under `local-script/` (teacher)
-and `student-scripts/` (student OTR). This path is intentionally distinct from the
-manual-token Colab/CLI workflow described above.
-
-Key local components:
-
-- `student-scripts/esk_otr_api.py` — read-only Playwright/API student report generator that can include unmasked student details.
-- `local-script/esk_teacher_list.py` — read-only teacher list export (28 columns, readable labels, combined address).
-- `local-script/esk_teacher_detail_extract.py` — read-only 7-sheet teacher profile export.
-- `local-script/run_teacher_report.sh` / `local-script/run_teacher_detail_report.sh` — validated teacher runners.
-- `local-script/esk_schools.py` — school alias / UDISE / Bitwarden-key registry.
-- `local-script/esk_code_maps.py` + `esk_code_maps.json` — learned code-to-label maps.
-- `skills/eshikshakosh-otr/SKILL.md` and `skills/eshikshakosh-teacher/SKILL.md` — same-channel Telegram/WhatsApp workflows and strict execution routes.
-- `local-script/run_report.sh` — validated local student-report runner; emits `REPORT_READY=<path>` on success.
-- `local-script/archive/` — retired scripts kept for reference only. Nothing there is a supported entry point.
-
-Earlier documentation referenced `student-scripts/esk_otr_api.py` and
-`local-script/install-hermes-skill.sh` at their old paths. Those files moved:
-`esk_otr_api.py` now lives in `student-scripts/`, and `install-hermes-skill.sh` is retired
-under `local-script/archive/`. `local-script/run_report.sh` stays a live runner in place.
-
-The local report path is read-only with respect to portal data, but its workbook can contain unmasked Aadhaar, bank-account, mobile, and related student information. Generated workbooks are private operational artifacts and must not be committed to GitHub.
-
-### Verified VPS checkpoint
-
-A real local run succeeded for UMV Tetahali for the current academic session. The verified summary was:
-
-- Total students: 220
-- OTR registered: 2
-- OTR pending: 218
-- Aadhaar values present: 219
-- Bank accounts present: 220
-- Mother names present: 220
-
-The current academic session is derived automatically using an April-March boundary unless explicitly overridden.
-
-### Report filename
-
-The local Hermes/VPS report now uses:
-
-```text
-Student_Details_<School>_<Session>.xlsx
-```
-
-The school name is sanitized for filesystem safety.
-
-### Hermes execution rule
-
-For e-ShikshaKosh student-report requests, Hermes must use the verified local command path and must not improvise with generic browser scraping or switch to teacher-data extraction.
-
-Expected route:
-
-```text
-request -> identify school -> resolve authorized credentials
-        -> ~/.local/bin/eshikshakosh-report
-        -> REPORT_READY=<path>
-        -> send the .xlsx back in the same private channel
-```
-
-Telegram and WhatsApp same-private-chat attachment delivery are both verified. On 2026-10-03 a real masked Class 10 report (34 students) was generated and delivered successfully to the configured WhatsApp Home/Admin chat.
-
-### Known Hermes issue
-
-A messaging-session defect was observed where internal attachment/tool-routing text leaked into user-visible responses. Request-dump inspection showed those phrases originated from normal internal instructions/tool descriptions; the problem is their accidental echo in the outward reply. A fresh-session reset removed the obvious leak in one immediate test, but the issue remains open until repeated channel tests pass.
-
-
-
-## DevOS / Vibe Coding project context
-
-Read these before substantial changes:
-
-- [PRD](PRD.md)
-- [Development rules](RULES.md)
-- [Tasks](TASKS.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Design](docs/DESIGN.md)
-- [Test plan](docs/TEST_PLAN.md)
-- [Security](docs/SECURITY.md)
-- [Decisions](docs/DECISIONS.md)
-- [Project memory](docs/MEMORY.md)
-- [Commands](docs/COMMANDS.md)
-- [History](docs/HISTORY.md)
-
-Material work follows:
-
-```text
-READ -> UNDERSTAND -> PLAN -> IMPLEMENT -> TEST -> REVIEW -> FIX -> COMMIT -> UPDATE DOCUMENTATION
-```
-
-## Runtime profiles and recovery brain
-
-The repository has two deliberately separate paths:
-
-- **Safe/manual exporter:** `eshikshakosh_otr.py` uses a short-lived bearer token, normal TLS verification, user-selected export privacy mode (default `full`), and no portal mutation.
-- **Private local automation:** `student-scripts/esk_otr_api.py` plus `local-script/run_report.sh` is for the authorized private runtime only. Credentials come from the protected runtime environment/wrapper; generated reports remain local and are ignored by Git.
-
-Do not infer or commit unverified portal endpoints. Generated student workbooks are operational artifacts, not source files.
-
-Project-specific recovery/state context is also maintained in `brain/eshikshakosh-report/`.
-
-## Export privacy mode
-
-User controls export privacy. Supported modes: `full` and `masked`. Default: **`full`**. The system must not silently change the selected mode.
-
-Launcher examples:
-
-```text
-~/.local/bin/eshikshakosh-report
-~/.local/bin/eshikshakosh-report 2026-27
-~/.local/bin/eshikshakosh-report 2026-27 masked
-```
-
-## Slash command aliases
-
-Preferred command: `/eshikshakosh`. Short aliases: `/esk`, `/esk-report`, `/eshikshakosh-report`; typo-compatible `/eshikakossh-report` is also accepted. Without a school name the command asks for one. Known school aliases are matched to Bitwarden credentials; missing credentials route to the secure `/bw add` form.
-
-## Class / section / stream scoped reports
-
-The private VPS report path now supports API-level filters so Hermes can generate only the requested student scope:
-
-```text
-~/.local/bin/eshikshakosh-report --class 10
-~/.local/bin/eshikshakosh-report --class 10 --section 2
-~/.local/bin/eshikshakosh-report --class 11 --stream 2
-~/.local/bin/eshikshakosh-report --class 12 --section 1 --stream 3
-~/.local/bin/eshikshakosh-report --split-sheets
-```
-
-Stream mapping: Arts=`1`, Science=`2`, Commerce=`3`. For full-school output, `--split-sheets` writes class/section-wise sheets for Classes 9–10 and class/section/stream-wise sheets for Classes 11–12. Natural-language messaging requests should infer these choices and ask only for genuinely missing scope details.
-
-## Live login contract — 7 October 2026
-
-The private VPS exporter in `student-scripts/esk_otr_api.py` follows the current portal login contract:
-
-- frontend: `https://eshikshakosh.bihar.gov.in`
-- login API: `POST https://eshikshakosh.bihar.gov.in:8443/auth/login`
-- the Angular frontend AES-encrypts the complete login form before POSTing it;
-- school login uses user type `2`;
-- CAPTCHA is the portal's client-side arithmetic challenge;
-- successful login returns `token` / `access_token` and the frontend stores them in `sessionStorage`.
-
-The exporter now watches the exact `/auth/login` response instead of treating missing storage/cookies as the primary error. Portal rejection messages are propagated cleanly to callers.
-
-Verified diagnostic on 7 October 2026:
-- the live encrypted login request reached `/auth/login`;
-- CAPTCHA submission was accepted by the client flow;
-- the then-current temporary credential pair was rejected by the official portal with HTTP 422 (`Invalid userId/Password.`);
-- this is a credential rejection, not a token-capture failure.
-
-When this occurs, reconnect/update the eShikshaKosh password. Do not retry the same rejected pair in a loop.
-
-## Verify-only / one-use integration — 8 October 2026
-
-The maintained exporter now supports --verify-only.
-
-This mode performs the real portal login and a minimal student-list read, then returns only non-secret identity metadata (verified flag, UDISE, school ID/name and student count). The UDISE control plane uses it before showing eShikshaKosh as connected.
-
-For live EP integration:
-- credentials are passed to the exporter through environment variables rather than CLI arguments;
-- the UDISE app binds the temporary credential record to the active UDISE session;
-- after a successful source export, the password is discarded and the workbook becomes the EP source.
-
-## Teacher reports — 17 October 2026
-
-Teacher export is a separate workflow from the student OTR path. Two scripts, deliberately
-kept apart — one API-based list, one browser-based full profile:
-
-| Script | Method | Output |
-|---|---|---|
-| `local-script/esk_teacher_list.py` | API (list + per-teacher `registrationInfo`) | 28-column roster with readable labels and combined address |
-| `local-script/esk_teacher_detail_extract.py` | Browser / Playwright | 7-sheet full profile |
-
-Full documentation: [TEACHER_REPORT.md](TEACHER_REPORT.md) and
-[local-script/TEACHER_SCRIPTS.md](local-script/TEACHER_SCRIPTS.md).
-
-Key contract, verified live on 17 October 2026:
-
-- The list endpoint returns **raw numeric codes** for gender, marital status, nature of
-  appointment, class category, social category, appointed subject, district and block — but
-  it is the only endpoint that returns **unmasked** mobile, PAN and Aadhaar.
-- `/teacher/registrationInfo` returns those same fields as **readable labels**, but **masks**
-  mobile, PAN and Aadhaar. Exports must merge: labels from `registrationInfo`, unmasked
-  identifiers from the list endpoint.
-- `/teacher/getTeacherDetails` is **dead** — HTTP 500 `Server Error` for every key tried. It
-  has been removed from the detail extractor. Do not re-add it.
-- `gpfNo` and `uanNo` are genuinely absent in the portal for these schools (`None` / `--`).
-  Leave the cell blank rather than writing the string `None`.
-
-Endpoints that work, and what they return:
-
-| Endpoint | Key | Result |
-|---|---|---|
-| `/teacher/viewTeacher` | `schoolUdiseCode` | roster page |
-| `/teacher/registrationInfo` | `encId` | 55-field dict (labels, masked identifiers) |
-| `/teacher/viewTeacherEducationInfo` | `encId` | `preServicedata` + `inServicedata` |
-| `/teacher/viewTeacherProfessionalInfo` | `encId` | `data` list |
-| `/teacher/viewTeacherOtherInfo` | `encId` | `data` list |
-| `/teacher/viewTeacherTrainingInfo` | `encId` | `data` list |
-| `/teacher/getExistingServiceInfo` | `teacherEncryptedId` | `serviceInfo` list |
-
-Read-only: login, search, fetch and local Excel export only. No teacher record is created,
-edited, approved or submitted.
+- [Architecture](docs/ARCHITECTURE.md) · [Commands](docs/COMMANDS.md) · [Security](docs/SECURITY.md) · [Test plan](docs/TEST_PLAN.md)
+- [Project requirements](PRD.md) · [Development rules](RULES.md) · [Tasks](TASKS.md)
+- [Student report documentation](modules/student/README.md) · [Teacher report documentation](modules/teacher/README.md)

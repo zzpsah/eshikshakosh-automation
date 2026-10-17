@@ -13,7 +13,7 @@ Generate an authorized, read-only student-details Excel workbook from e-ShikshaK
 ## Current verified local state
 - Repository-local virtual environment is used.
 - Playwright is installed and verified.
-- `student-scripts/esk_otr_api.py` generated a real workbook successfully for the current academic session.
+- `modules/student/scripts/esk_otr_api.py` generated a real workbook successfully for the current academic session.
 - Verified run summary: 220 total students, 2 OTR registered, 218 OTR pending, 219 Aadhaar values present, 220 bank accounts, 220 mother names.
 - Current academic session is derived automatically using an April-March boundary unless explicitly overridden.
 - Hermes is instructed to use `~/.local/bin/eshikshakosh-report` and not improvise generic browser/teacher-data scraping.

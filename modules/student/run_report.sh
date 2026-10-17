@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO="${HOME}/projects/eshikshakosh-automation"
 PY="${REPO}/.venv/bin/python"
-APP="${REPO}/student-scripts/esk_otr_api.py"
+APP="${REPO}/modules/student/scripts/esk_otr_api.py"
 EXPORT_MODE="${ESHIKSHAKOSH_EXPORT_MODE:-full}"
 
 CLASS_FILTER="${ESHIKSHAKOSH_CLASS:-}"
@@ -83,5 +83,17 @@ if [[ -z "$report" || ! -f "$REPO/$report" ]]; then
   exit 4
 fi
 
+# Keep generated student workbooks out of the source tree. Preserve permissions because
+# full-mode reports may contain unmasked student identifiers.
+EXPORT_DIR="${ESHIKSHAKOSH_OUT:-${HOME}/exports/student}"
+mkdir -p "$EXPORT_DIR"
+chmod 700 "$EXPORT_DIR"
+DEST="$EXPORT_DIR/$report"
+if [[ -e "$DEST" ]]; then
+  DEST="$EXPORT_DIR/$(date +%Y%m%d_%H%M%S)_$report"
+fi
+mv -- "$REPO/$report" "$DEST"
+chmod 600 "$DEST"
+
 printf 'EXPORT_MODE=%s\n' "${EXPORT_MODE^^}"
-printf 'REPORT_READY=%s\n' "$REPO/$report"
+printf 'REPORT_READY=%s\n' "$DEST"

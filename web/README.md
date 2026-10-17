@@ -7,8 +7,8 @@ This is the Next.js frontend deployed as the Vercel project `eshikshakosh`.
 The website is a **workflow guide/command builder**, not yet a connected report-generation service. It lists the supported student and teacher report workflows and lets an operator copy the appropriate command for execution on the authorised Oracle VPS.
 
 - Student details: `~/.local/bin/eshikshakosh-report`
-- Teacher roster: `local-script/run_teacher_report.sh --school Sahaspur`
-- Full teacher profile: `local-script/run_teacher_detail_report.sh --school Sahaspur`
+- Teacher roster: `modules/teacher/run_teacher_report.sh --school Sahaspur`
+- Full teacher profile: `modules/teacher/run_teacher_detail_report.sh --school Sahaspur`
 
 Teacher commands use the existing school registry and protected credential wrapper. Run teacher commands from the `eshikshakosh-automation` repository root on the VPS.
 

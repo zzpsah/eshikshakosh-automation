@@ -44,7 +44,7 @@ Login via Playwright to capture JWT + access_token, then navigate to teacher pag
 
 ```bash
 cd ~/projects/eshikshakosh-automation
-~/.local/bin/eshikshakosh-run .venv/bin/python local-script/esk_teacher_extract.py
+~/.local/bin/eshikshakosh-run .venv/bin/python modules/teacher/scripts/esk_teacher_extract.py
 ```
 
 The script:
@@ -225,7 +225,7 @@ Wrapper `eshikshakosh-run` is **hardcoded to Tetahali** credentials. For any oth
 ```bash
 export ESHIKSHAKOSH_USERNAME=$(bws-hermes secret get ESHIKSHAKOSH_UMV_SAHASPUR_OPERATOR_USERNAME 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['value'])")
 export ESHIKSHAKOSH_PASSWORD=$(bws-hermes secret get ESHIKSHAKOSH_UMV_SAHASPUR_OPERATOR_PASSWORD 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['value'])")
-~/projects/eshikshakosh-automation/.venv/bin/python ~/projects/eshikshakosh-automation/local-script/esk_teacher_extract.py
+~/projects/eshikshakosh-automation/.venv/bin/python ~/projects/eshikshakosh-automation/modules/teacher/scripts/esk_teacher_extract.py
 ```
 
 ### Three-raasta approach
@@ -252,10 +252,10 @@ Default to `--school` for known schools. Use `--udise` + `--username` + `--passw
 ```bash
 # GOOD — env var, not in history
 ESHIKSHAKOSH_USERNAME=<login> ESHIKSHAKOSH_PASSWORD=*** \
-  local-script/run_teacher_report.sh --udise 10130106304
+  modules/teacher/run_teacher_report.sh --udise 10130106304
 
 # BAD — visible in shell history
-local-script/run_teacher_report.sh --udise 10130106304 --username <login> --password <password>
+modules/teacher/run_teacher_report.sh --udise 10130106304 --username <login> --password <password>
 ```
 
 ## Two scripts — keep them SEPARATE
@@ -264,8 +264,8 @@ User directive: the browser-based and API-based methods stay separate. Do NOT me
 
 | Script | Method | Output |
 |---|---|---|
-| `local-script/esk_teacher_list.py` | API (list + per-teacher `registrationInfo`) | 28-col list with combined address |
-| `local-script/esk_teacher_detail_extract.py` | Browser / Playwright | 7-sheet full detail — **do not modify** |
+| `modules/teacher/scripts/esk_teacher_list.py` | API (list + per-teacher `registrationInfo`) | 28-col list with combined address |
+| `modules/teacher/scripts/esk_teacher_detail_extract.py` | Browser / Playwright | 7-sheet full detail — **do not modify** |
 
 Both must ask, never assume: which school, then credentials (Bitwarden or typed in), then how much detail. Prompts in plain Hindi ("Kaunsi school ka data chahiye?", "Kitna detail chahiye?") — no technical jargon.
 
@@ -328,7 +328,7 @@ absent in the portal, so write a blank cell, not the string `None`.
 ## Legacy Script
 
 ```
-~/projects/eshikshakosh-automation/local-script/esk_teacher_extract.py
+~/projects/eshikshakosh-automation/modules/teacher/scripts/esk_teacher_extract.py
 ```
 
 See `references/api-technical.md` for full field list, auth header mapping, and common errors.

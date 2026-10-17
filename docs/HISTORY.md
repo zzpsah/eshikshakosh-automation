@@ -17,7 +17,7 @@
 
 ## 2026-10-02 repository reconciliation
 - Reviewed the previously dirty Oracle working tree.
-- Retained executable-bit fixes for `local-script/install-hermes-skill.sh` and `local-script/run_report.sh`.
+- Retained executable-bit fixes for `shared/archive/install-hermes-skill.sh` and `modules/student/run_report.sh`.
 - Removed an untracked guessed teacher-API placeholder rather than committing unverified endpoints.
 - Repaired the missing opening module docstring in the safe root exporter.
 - Removed a generated Student OTR workbook from the current Git tree while preserving the local ignored artifact.
@@ -40,7 +40,7 @@ Completed the scoped report update: class/section/stream API filters, split-shee
 
 ## 2026-10-17 — Teacher export documented, dead endpoint removed, Education bug fixed
 
-- Added `local-script/esk_teacher_list.py` — API-based 28-column teacher roster that merges
+- Added `modules/teacher/scripts/esk_teacher_list.py` — API-based 28-column teacher roster that merges
   readable labels from `/teacher/registrationInfo` with unmasked mobile/PAN/Aadhaar from the
   list endpoint, and builds a single-cell combined current/permanent address.
 - Verified all seven teacher detail endpoints live against UMV Tetahali. `/teacher/getTeacherDetails`
@@ -53,7 +53,7 @@ Completed the scoped report update: class/section/stream API filters, split-shee
 - Deleted the experimental `esk_teacher_unified.py` at the user's direction; the API list
   path and the browser detail path stay separate.
 - Moved retired scripts (`esk_otr_api.py`, `run_report.sh`, `install-hermes-skill.sh`, teacher
-  probes) into `student-scripts/` and `local-script/archive/`, and updated README paths that
+  probes) into `modules/student/scripts/` and `modules/teacher/archive/`, and updated README paths that
   still pointed at the old locations.
 - Committed `esk_code_maps.py` / `esk_code_maps.json`, which earlier reviews had flagged as
   untracked worktree-only helpers.
