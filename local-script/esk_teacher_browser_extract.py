@@ -15,6 +15,8 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 from playwright.async_api import async_playwright
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
@@ -24,6 +26,109 @@ BASE = 'https://eshikshakosh.bihar.gov.in'
 API_URL = 'https://eshikshakosh.bihar.gov.in:8443/teacher/viewTeacher'
 EXPECTED_UDISE = '10160203806'  # UMV Tetahali; refuse exports that include other schools
 EXPECTED_SCHOOL_ID = 42645
+
+
+def export_full_details(all_details, filename):
+    """Export full teacher details to Excel with multiple sheets."""
+    wb = openpyxl.Workbook()
+    ws1 = wb.active
+    ws1.title = "Teachers"
+
+    priority_fields = [
+        "slNo", "teacherLoginCode", "teacherName", "gender", "maritalStatus",
+        "DOB", "teacherTitle", "natureOfAppointmt", "serviceJoiningDt",
+        "joiningCurrentSchoolDt", "classCategory", "appointedSubject",
+        "mobile", "teacherEmail", "panNo", "employeeCode", "pranNo", "gpfNo",
+        "uanNo", "aadhaarNo", "socialCategory", "pDomicileNumber",
+        "motherName", "fatherName",
+    ]
+    GENDER_MAP = {"1": "Male", "2": "Female"}
+    HEADER_MAP = {
+        "slNo": "Serial No", "teacherLoginCode": "Temp Login ID",
+        "teacherName": "Teacher Name", "gender": "Gender",
+        "maritalStatus": "Marital Status", "DOB": "Date of Birth",
+        "teacherTitle": "Teacher Title", "natureOfAppointmt": "Nature of Appointment",
+        "serviceJoiningDt": "Service Joining Date",
+        "joiningCurrentSchoolDt": "Joining Current School Date",
+        "classCategory": "Class Category", "appointedSubject": "Appointed Subject",
+        "mobile": "Mobile", "teacherEmail": "Email", "panNo": "PAN Number",
+        "employeeCode": "Employee Code (HRMS ID)", "pranNo": "PRAN Number",
+        "gpfNo": "GPF Number", "uanNo": "UAN Number",
+        "aadhaarNo": "Aadhaar Number", "socialCategory": "Social Category",
+        "pDomicileNumber": "Permanent Domicile Number",
+        "motherName": "Mother Name", "fatherName": "Father Name",
+    }
+    for col_idx, key in enumerate(priority_fields, 1):
+        ws1.cell(row=1, column=col_idx, value=HEADER_MAP.get(key, key))
+    for row_idx, details in enumerate(all_details, 2):
+        teacher = details.get("basic", {})
+        for col_idx, key in enumerate(priority_fields, 1):
+            value = teacher.get(key, "")
+            if value is None:
+                value = ""
+            if key == "gender" and str(value).strip() in GENDER_MAP:
+                value = GENDER_MAP[str(value).strip()]
+            ws1.cell(row=row_idx, column=col_idx, value=value)
+
+    # Sheet 2: Service History
+    ws2 = wb.create_sheet("Service History")
+    for col_idx, h in enumerate(["Sl No", "Teacher Name", "District", "Block", "School", "Nature of Appointment", "Designation", "From", "To", "Class Category", "Subject(s)"], 1):
+        ws2.cell(row=1, column=col_idx, value=h)
+    sh_row = 2
+    for details in all_details:
+        teacher = details.get("basic", {})
+        sh_text = details.get("service_history_text", "")
+        if sh_text:
+            for line in sh_text.split("\n"):
+                if "TETAHALI" in line or "SIWAN" in line or "BARHARIA" in line:
+                    parts = line.split("\t")
+                    if len(parts) >= 5:
+                        ws2.cell(row=sh_row, column=1, value=sh_row - 1)
+                        ws2.cell(row=sh_row, column=2, value=teacher.get("teacherName", ""))
+                        for ci, part in enumerate(parts, 3):
+                            if ci <= 11:
+                                ws2.cell(row=sh_row, column=ci, value=part.strip())
+                        sh_row += 1
+
+    # Sheets 3-5: Education, Professional, Training
+    for sheet_name, text_key in [("Education Info", "education_text"), ("Professional Info", "professional_text"), ("Training Info", "training_text")]:
+        ws = wb.create_sheet(sheet_name)
+        ws.cell(row=1, column=1, value="Teacher Name")
+        ws.cell(row=1, column=2, value="Details")
+        r = 2
+        for details in all_details:
+            text = details.get(text_key, "")
+            if text:
+                ws.cell(row=r, column=1, value=details.get("basic", {}).get("teacherName", ""))
+                ws.cell(row=r, column=2, value=text[:5000])
+                r += 1
+
+    # Apply formatting
+    header_fill = PatternFill(start_color="F2F4F7", end_color="F2F4F7", fill_type="solid")
+    header_font = Font(bold=True, color="1F2937", size=10)
+    thin_border = Border(
+        left=Side(style="thin", color="D1D5DB"),
+        right=Side(style="thin", color="D1D5DB"),
+        top=Side(style="thin", color="D1D5DB"),
+        bottom=Side(style="thin", color="D1D5DB"),
+    )
+    for ws in wb.worksheets:
+        for cell in ws[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = thin_border
+        ws.freeze_panes = "A2"
+
+    # Auto-size columns for ws1
+    for col_idx, key in enumerate(priority_fields, 1):
+        max_len = len(HEADER_MAP.get(key, key)) + 2
+        for row_idx in range(2, len(all_details) + 2):
+            val = ws1.cell(row=row_idx, column=col_idx).value
+            if val:
+                max_len = max(max_len, len(str(val)) + 2)
+        ws1.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = min(max_len, 50)
+
+    wb.save(filename)
 
 
 def unpack(response_json):
@@ -177,6 +282,124 @@ async def main():
             if not value_mappings:
                 print('WARNING=No verified display-value mapping captured; unmapped codes will remain unchanged')
 
+            # Fetch full details (service history, education, professional) for each teacher
+            print('FETCHING_FULL_DETAILS...')
+            all_details = []
+            for i, teacher in enumerate(teachers):
+                tId = teacher.get('tId')
+                login_code = teacher.get('teacherLoginCode', '')
+                name = teacher.get('teacherName', '')
+                print(f'  [{i+1}/{len(teachers)}] {name} (tId={tId})...')
+
+                details = {'basic': teacher}
+
+                # Navigate to teacher detail page
+                await page.goto(
+                    f'{BASE}/Application/teacher/registration/viewTeacher?teacherId={tId}',
+                    wait_until='networkidle', timeout=60000,
+                )
+                await page.wait_for_timeout(2000)
+
+                # Extract registration info (default tab)
+                reg_text = await page.evaluate('() => document.body.innerText')
+                details['registration_text'] = reg_text
+
+                # Click Service History link (opens in new tab)
+                try:
+                    sh_link = page.locator("a:has-text('Service History'), a:has-text('सेवा इतिहास')").first
+                    if await sh_link.count() > 0:
+                        pages_before = len(context.pages)
+                        await sh_link.click()
+                        await page.wait_for_timeout(3000)
+                        # Find new page
+                        if len(context.pages) > pages_before:
+                            new_page = context.pages[-1]
+                            sh_text = await new_page.evaluate('() => document.body.innerText')
+                            details['service_history_text'] = sh_text
+                            await new_page.close()
+                            print(f'    ✅ Service History: {len(sh_text)} chars')
+                        else:
+                            print(f'    ⚠️ Service History: no new tab')
+                except Exception as e:
+                    print(f'    ⚠️ Service History: {e}')
+
+                # Navigate back to detail page for Education tab
+                await page.goto(
+                    f'{BASE}/Application/teacher/registration/viewTeacher?teacherId={tId}',
+                    wait_until='networkidle', timeout=60000,
+                )
+                await page.wait_for_timeout(2000)
+
+                # Click Educational Info link
+                try:
+                    edu_link = page.locator("a:has-text('Educational Info'), a:has-text('शैक्षिक')").first
+                    if await edu_link.count() > 0:
+                        pages_before = len(context.pages)
+                        await edu_link.click()
+                        await page.wait_for_timeout(3000)
+                        if len(context.pages) > pages_before:
+                            new_page = context.pages[-1]
+                            edu_text = await new_page.evaluate('() => document.body.innerText')
+                            details['education_text'] = edu_text
+                            await new_page.close()
+                            print(f'    ✅ Education: {len(edu_text)} chars')
+                        else:
+                            print(f'    ⚠️ Education: no new tab')
+                except Exception as e:
+                    print(f'    ⚠️ Education: {e}')
+
+                # Navigate back for Professional Info tab
+                await page.goto(
+                    f'{BASE}/Application/teacher/registration/viewTeacher?teacherId={tId}',
+                    wait_until='networkidle', timeout=60000,
+                )
+                await page.wait_for_timeout(2000)
+
+                # Click Professional Info link
+                try:
+                    prof_link = page.locator("a:has-text('Professional Info'), a:has-text('व्यावसायिक')").first
+                    if await prof_link.count() > 0:
+                        pages_before = len(context.pages)
+                        await prof_link.click()
+                        await page.wait_for_timeout(3000)
+                        if len(context.pages) > pages_before:
+                            new_page = context.pages[-1]
+                            prof_text = await new_page.evaluate('() => document.body.innerText')
+                            details['professional_text'] = prof_text
+                            await new_page.close()
+                            print(f'    ✅ Professional: {len(prof_text)} chars')
+                        else:
+                            print(f'    ⚠️ Professional: no new tab')
+                except Exception as e:
+                    print(f'    ⚠️ Professional: {e}')
+
+                # Navigate back for Training & Language Info tab
+                await page.goto(
+                    f'{BASE}/Application/teacher/registration/viewTeacher?teacherId={tId}',
+                    wait_until='networkidle', timeout=60000,
+                )
+                await page.wait_for_timeout(2000)
+
+                try:
+                    train_link = page.locator("a:has-text('Training'), a:has-text('प्रशिक्षण')").first
+                    if await train_link.count() > 0:
+                        pages_before = len(context.pages)
+                        await train_link.click()
+                        await page.wait_for_timeout(3000)
+                        if len(context.pages) > pages_before:
+                            new_page = context.pages[-1]
+                            train_text = await new_page.evaluate('() => document.body.innerText')
+                            details['training_text'] = train_text
+                            await new_page.close()
+                            print(f'    ✅ Training: {len(train_text)} chars')
+                        else:
+                            print(f'    ⚠️ Training: no new tab')
+                except Exception as e:
+                    print(f'    ⚠️ Training: {e}')
+
+                all_details.append(details)
+
+            # Export basic info to Excel (same as before)
             export_dir = Path.home() / 'exports'
             export_dir.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -187,6 +410,12 @@ async def main():
             print(f'FIELDS_PER_RECORD={len(teachers[0])}')
             print(f'WORKBOOK={output}')
             print('SOURCE=authenticated Playwright browser request/response; read-only')
+
+            # Export full details to a second workbook with multiple sheets
+            detail_output = export_dir / f'Teachers_FullDetail_{timestamp}.xlsx'
+            export_full_details(all_details, str(detail_output))
+            os.chmod(detail_output, 0o600)
+            print(f'DETAIL_WORKBOOK={detail_output}')
         finally:
             await context.close()
             await browser.close()

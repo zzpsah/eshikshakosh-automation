@@ -607,7 +607,7 @@ def export_to_excel(teachers, filename, value_mappings=None):
     }
 
     def combine_address(teacher, fields):
-        """Combine address fields into a labeled, readable format."""
+        """Combine address fields into a compact labeled format."""
         parts = []
         for f in fields:
             v = teacher.get(f, "")
@@ -640,15 +640,43 @@ def export_to_excel(teachers, filename, value_mappings=None):
                         value = lookup.get(str(value).strip(), value)
             ws.cell(row=row_idx, column=col_idx, value=value)
 
-    # Auto-adjust column widths (use header length as minimum)
+    # Auto-fit column widths based on content
     for col_idx, key in enumerate(all_columns, 1):
         header = header_for(key)
-        max_len = len(header)
+        max_len = len(header) + 2
         for row_idx in range(2, len(teachers) + 2):
             val = ws.cell(row=row_idx, column=col_idx).value
             cell_val = str(val) if val is not None else ""
-            max_len = max(max_len, len(cell_val))
-        ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = min(max_len + 2, 45)
+            max_len = max(max_len, len(cell_val) + 2)
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = min(max_len, 50)
+
+    # Professional formatting matching student OTR report style
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    header_fill = PatternFill(start_color="F2F4F7", end_color="F2F4F7", fill_type="solid")
+    header_font = Font(bold=True, color="1F2937", size=10)
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    data_font = Font(bold=False, color="111827", size=10)
+    data_alignment = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin", color="D1D5DB"),
+        right=Side(style="thin", color="D1D5DB"),
+        top=Side(style="thin", color="D1D5DB"),
+        bottom=Side(style="thin", color="D1D5DB"),
+    )
+    for col_idx in range(1, len(all_columns) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+        cell.border = thin_border
+    for row_idx in range(2, len(teachers) + 2):
+        for col_idx in range(1, len(all_columns) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.font = data_font
+            cell.alignment = data_alignment
+            cell.border = thin_border
+    ws.auto_filter.ref = f"A1:{openpyxl.utils.get_column_letter(len(all_columns))}{len(teachers) + 1}"
+    ws.freeze_panes = "A2"
 
     wb.save(filename)
     log.info(f"Exported {len(teachers)} teachers to {filename}")
