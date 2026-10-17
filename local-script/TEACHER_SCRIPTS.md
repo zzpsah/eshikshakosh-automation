@@ -32,8 +32,8 @@ For one-time credentials, follow the runner's usage comments. Never put real pas
 |---|---|---|
 | `esk_teacher_browser_extract_school.py` | School-agnostic roster extractor; derives school scope and auth context from the live browser request | **Canonical roster extractor**; called by `run_teacher_report.sh` |
 | `esk_teacher_detail_extract.py` | Reads registration, education, professional, other, training and service-history sections through the authenticated browser session | **Canonical detail extractor**; called by `run_teacher_detail_report.sh` |
-| `esk_code_maps.py` | Loads/saves verified code-to-label mappings learned from portal service-history data | **Shared helper** imported by both canonical extractors; do not archive independently |
-| `esk_code_maps.json` | Persisted learned label mappings | Runtime/support data; inspect changes before committing, and never insert personal data or credentials |
+| `esk_code_maps.py` | Loads/saves verified code-to-label mappings learned from portal service-history data | **Working-tree helper** imported by the locally modified canonical extractors; the helper and related extractor edits were not included in the documentation/portal commit, so review and commit them together before relying on this change from a clean checkout |
+| `esk_code_maps.json` | Persisted learned label mappings | Working-tree runtime/support data; untracked during this review. Inspect changes before committing, and never insert personal data or credentials |
 | `esk_schools.py` | School alias, UDISE and Bitwarden-key registry | Shared configuration for both runners |
 | `esk_teacher_extract.py` | Older list/API implementation and Excel field/header mapping used by the legacy Tetahali-specific extractor | **Legacy/reference**; not the supported runner target. Working-tree changes were left untouched |
 | `esk_teacher_browser_extract.py` | Older Tetahali-specific browser extractor; hardcodes UDISE `10160203806` and school ID `42645`; contains an older full-detail path | **Do not use for Sahaspur or other schools.** Working-tree changes were left untouched |
@@ -77,10 +77,10 @@ The two supported workflows are intended to be read-only against the portal. Wor
 
 ## Review findings
 
-1. The supported surface is **two runner scripts**, **two canonical extractors**, **one shared mapping helper**, and **one school registry**.
+1. The supported runner contract has **two runner scripts** and **two canonical extractor targets**, plus the school registry. The mapping helper is present in the current worktree but its integration is still uncommitted.
 2. Four archived scripts and four standalone diagnostic/legacy probes remain outside the supported path; `esk_teacher_unified.py` is an additional experimental candidate, not yet wired into the runners.
 3. `esk_teacher_browser_extract.py` hardcodes Tetahali's UDISE and numeric school ID. It must not be used for Sahaspur.
-4. The working tree already had changes to `esk_teacher_extract.py` and `esk_teacher_browser_extract.py`; additional files for code mappings and a unified extractor appeared during the review. These files were not reverted, deleted, or wired into the runner during this documentation pass, to avoid disrupting another session's work.
+4. The working tree already had changes to `esk_teacher_extract.py` and `esk_teacher_browser_extract.py`; additional files for code mappings and a unified extractor appeared during the review. These files were not reverted, deleted, or wired into the runner during this documentation pass, to avoid disrupting another session's work. The code-map helper and JSON are still untracked, and the two extractor edits are still uncommitted; the last documentation/portal commit therefore does not include that source-code change set.
 5. A detail sheet that says `No records for this school` means the extractor received no rows for that category. By itself, it does not prove the portal has no data; check the endpoint response and status before making that conclusion.
 6. Generated workbooks contain personal and employment information. Keep them in `~/exports`, preserve restrictive permissions, and never commit them.
 

@@ -11,3 +11,6 @@ student_exports/
 *.bak*
 local-script/*_probe.py
 local-script/*_intercept.py
+
+# Local Vercel project links and deployment metadata
+.vercel/

@@ -31,4 +31,4 @@ The UI is responsive and supports keyboard-accessible workflow selection. It doe
 
 ## Vercel
 
-The linked project metadata is in `.vercel/project.json` (keep that local configuration out of Git). The production project was identified as `eshikshakosh`, with URL `https://eshikshakosh.vercel.app`. Vercel API inspection from the current connector returned a scope authorization error; verify deployment status using the linked Vercel CLI/account or dashboard before treating a new release as live.
+The Vercel project is `eshikshakosh`; its root directory is configured as `web`. The verified production alias is `https://eshikshakosh-coral.vercel.app`. Vercel Authentication protects deployment access, so the page may require an authorised team login. Keep `.vercel/project.json` local and out of Git. The production deployment completed successfully after correcting the root directory.

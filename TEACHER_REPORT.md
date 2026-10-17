@@ -16,7 +16,7 @@ See [local-script/TEACHER_SCRIPTS.md](local-script/TEACHER_SCRIPTS.md) for the c
 
 ## Vercel workflow portal
 
-Portal: [https://eshikshakosh.vercel.app](https://eshikshakosh.vercel.app). The frontend is currently a command guide for the existing Oracle VPS workflows; it does not yet generate or deliver reports directly. See [web/README.md](web/README.md) for the current integration boundary and safe next steps.
+Portal: [https://eshikshakosh-coral.vercel.app](https://eshikshakosh-coral.vercel.app). The frontend is currently a command guide for the existing Oracle VPS workflows; it does not yet generate or deliver reports directly. See [web/README.md](web/README.md) for the current integration boundary and safe next steps.
 
 ## List export
 
