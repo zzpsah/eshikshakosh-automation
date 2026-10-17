@@ -32,8 +32,11 @@ Verified live against UMV Tetahali (16 teachers):
 - Academic session defaults automatically using an April-March boundary.
 - Hermes student-report execution is pinned to `~/.local/bin/eshikshakosh-report`.
 - Telegram and WhatsApp same-private-chat Excel attachment delivery are verified.
-- Student OTR code now lives in `student-scripts/esk_otr_api.py`; the retired shell wrappers
-  (`run_report.sh`, `install-hermes-skill.sh`) are under `local-script/archive/`.
+- Student OTR code now lives in `student-scripts/esk_otr_api.py`. `local-script/run_report.sh`
+  stays a live runner and was repointed at that new path; `install-hermes-skill.sh` is retired
+  under `local-script/archive/`.
+- **Student report path verified working after the move** — a live run through
+  `~/.local/bin/eshikshakosh-report` produced a fresh `Student_Details_..._All.xlsx`.
 
 ## Known issue
 Hermes messaging exposed internal prompt/tool-routing text in a user-visible reply. Request-dump inspection showed the strings existed in normal internal instructions/tool metadata. A fresh-session reset removed the obvious raw dump once, but the issue is not considered closed.

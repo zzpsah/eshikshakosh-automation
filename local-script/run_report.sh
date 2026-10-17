@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO="${HOME}/projects/eshikshakosh-automation"
 PY="${REPO}/.venv/bin/python"
-APP="${REPO}/local-script/esk_otr_api.py"
+APP="${REPO}/student-scripts/esk_otr_api.py"
 EXPORT_MODE="${ESHIKSHAKOSH_EXPORT_MODE:-full}"
 
 CLASS_FILTER="${ESHIKSHAKOSH_CLASS:-}"

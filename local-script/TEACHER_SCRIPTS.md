@@ -66,7 +66,12 @@ The following files are under `local-script/archive/` and are historical referen
 - `esk_teacher_detail_values.py`
 - `esk_teacher_edu_probe.py`
 - `esk_teacher_mapping_extract.py`
-- `install-hermes-skill.sh`, `run_report.sh`, `telegram_report_test.sh` — retired shell wrappers
+- `install-hermes-skill.sh`, `telegram_report_test.sh` — retired shell wrappers
+
+`local-script/run_report.sh` is **not** archived: it is the live student-report runner that
+`~/.local/bin/eshikshakosh-report` executes. It was briefly moved into `archive/` on
+2026-10-17 and that broke the student export path; it has been restored to `local-script/`
+and its `APP` path repointed at `student-scripts/esk_otr_api.py`.
 
 The experimental `esk_teacher_unified.py` (a proposed one-script list + detail implementation)
 was **deleted on 2026-10-17** at the user's direction. Do not recreate it: the API list and the

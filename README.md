@@ -49,12 +49,13 @@ Key local components:
 - `local-script/esk_schools.py` — school alias / UDISE / Bitwarden-key registry.
 - `local-script/esk_code_maps.py` + `esk_code_maps.json` — learned code-to-label maps.
 - `skills/eshikshakosh-otr/SKILL.md` and `skills/eshikshakosh-teacher/SKILL.md` — same-channel Telegram/WhatsApp workflows and strict execution routes.
+- `local-script/run_report.sh` — validated local student-report runner; emits `REPORT_READY=<path>` on success.
 - `local-script/archive/` — retired scripts kept for reference only. Nothing there is a supported entry point.
 
-Earlier documentation referenced `local-script/esk_otr_api.py`, `local-script/run_report.sh`
-and `local-script/install-hermes-skill.sh` at their old paths. Those files moved:
-`esk_otr_api.py` now lives in `student-scripts/`, and the shell wrappers are retired under
-`local-script/archive/`.
+Earlier documentation referenced `local-script/esk_otr_api.py` and
+`local-script/install-hermes-skill.sh` at their old paths. Those files moved:
+`esk_otr_api.py` now lives in `student-scripts/`, and `install-hermes-skill.sh` is retired
+under `local-script/archive/`. `local-script/run_report.sh` stays a live runner in place.
 
 The local report path is read-only with respect to portal data, but its workbook can contain unmasked Aadhaar, bank-account, mobile, and related student information. Generated workbooks are private operational artifacts and must not be committed to GitHub.
 
