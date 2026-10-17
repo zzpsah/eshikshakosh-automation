@@ -31,6 +31,7 @@ from playwright.async_api import async_playwright
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
+import esk_code_maps as code_maps
 
 BASE = 'https://eshikshakosh.bihar.gov.in'
 API = 'https://eshikshakosh.bihar.gov.in:8443'
@@ -225,6 +226,17 @@ async def main():
     school_slug = slugify(str(teachers[0].get('schoolName') or '')) if teachers else slugify(target_udise)
     output = out_dir / f'Teacher_Details_{school_slug}_{timestamp}.xlsx'
     write_workbook(teachers, details, str(output))
+
+    # Teach the code->label map from the portal's own service-history labels, so later
+    # list exports can show readable subject names instead of numeric codes.
+    learned = {}
+    for item in details:
+        section = (item.get('sections') or {}).get('serviceInfo') or {}
+        learned.update(code_maps.learn_from_service_history(_rows(section)))
+    if learned:
+        code_maps.save(code_maps.merge(code_maps.load(), 'appointedSubject', learned))
+        print(f'SUBJECT_MAP_LEARNED={len(learned)}')
+
     os.chmod(output, 0o600)
     print(f'TEACHERS={len(teachers)}')
     print(f'WORKBOOK={output}')
@@ -311,8 +323,13 @@ def write_workbook(teachers, details, filename):
                 for c in ws[1]:
                     c.font = bold
             for rec in records:
-                ws.append([teacher.get('tId'), teacher.get('teacherName')] +
-                          [rec.get(k, '') if isinstance(rec, dict) else '' for k in keys])
+                row_data = [teacher.get('tId'), teacher.get('teacherName')]
+                for k in keys:
+                    v = rec.get(k, '') if isinstance(rec, dict) else ''
+                    if isinstance(v, (list, dict)):
+                        v = json.dumps(v, ensure_ascii=False)
+                    row_data.append(v)
+                ws.append(row_data)
                 written += 1
         if written == 0:
             ws.append(['Teacher ID', 'Teacher Name', 'Status'])

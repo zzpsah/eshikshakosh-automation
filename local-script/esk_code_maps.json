@@ -1,0 +1,19 @@
+{
+  "appointedSubject": {
+    "10": "Accountancy (एकाउंटेंसी)",
+    "101": "Sociology (समाज शास्त्र)",
+    "111": "Social Science (समाजिक विज्ञान)",
+    "112": "Arabic (अरबी)",
+    "13": "Chemistry (रसायन शास्त्र)",
+    "14": "Computer Science (कंप्यूटर विज्ञान)",
+    "19": "History (इतिहास)",
+    "24": "Psychology (मनोविज्ञान)",
+    "27": "Zoology (जंतु विज्ञान)",
+    "3": "Mathematics (गणित)",
+    "41": "Hindi (हिंदी)",
+    "45": "Urdu (उर्दू)",
+    "46": "English (अंग्रेजी)",
+    "6": "Music (संगीत)",
+    "7": "Science (विज्ञान)"
+  }
+}
