@@ -48,3 +48,7 @@ For a teacher-detail smoke test, set `ESHIKSHAKOSH_DETAIL_LIMIT=2` before invoki
 - [Architecture](docs/ARCHITECTURE.md) · [Commands](docs/COMMANDS.md) · [Security](docs/SECURITY.md) · [Test plan](docs/TEST_PLAN.md)
 - [Project requirements](PRD.md) · [Development rules](RULES.md) · [Tasks](TASKS.md)
 - [Student report documentation](modules/student/README.md) · [Teacher report documentation](modules/teacher/README.md)
+
+## Cross-project AI handoff
+
+For cross-repository ownership, shared infrastructure dependencies, and safe AI handoff rules, start with the [Oracle VPS cross-project map](https://github.com/zzpsah/oracle-server/blob/main/docs/CROSS-PROJECT-MAP.md). Then follow this repository’s own AGENTS.md, architecture, current-state, security, and test documentation. The map is navigation guidance, not a substitute for verifying live state.
