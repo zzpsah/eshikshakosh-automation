@@ -298,6 +298,8 @@ Everything else is rejected without a valid token (401).
 | Job state | `~/.local/share/jobserver/jobs.json` |
 | Job audit log | `~/.local/share/jobserver/audit.log` |
 | Gateway unit | `~/.config/systemd/user/esk-gateway.service` |
+| Job service unit | `~/.config/systemd/user/esk-jobserver.service` (template: `shared/jobserver/esk-jobserver.service`) |
+| Job service token | `~/.config/systemd/user/esk-jobserver.env` (mode 0600, **not** committed) |
 | Web unit | `~/.config/systemd/user/esk-web.service` |
 | Python venv | `.venv/bin/python` |
 | Node | `/home/prashant/.local/node/current/bin` |
@@ -388,12 +390,12 @@ by replaying the four route calls with a valid `ESK_GATEWAY_TOKEN`.
 
 | # | Finding | Severity | Action |
 |---|---|---|---|
-| 1 | **Job service is not a systemd unit.** It runs as a manually-started process (pid 2474042, started 2026-10-17). It will not survive a reboot and will not restart on crash. | **High** | Create `~/.config/systemd/user/esk-jobserver.service` mirroring the other two units; `systemctl --user enable --now`. |
+| 1 | ~~Job service not a systemd unit~~ — **RESOLVED 2026-10-23.** It was a manually-started Hermes exec session (pid 2474042), so it died with that session. It is now `esk-jobserver.service` — template committed at `shared/jobserver/esk-jobserver.service`, `enable`d so it survives reboot, and verified end-to-end through the public funnel. | — | To rebuild: create `~/.config/systemd/user/esk-jobserver.env` containing `JOB_SERVER_TOKEN=<secret>` (mode 0600), copy the template into `~/.config/systemd/user/`, then `systemctl --user daemon-reload && systemctl --user enable --now esk-jobserver`. |
 | 2 | **`job_token` in `shared/gateway/config.json` is a weak, guessable literal** (a `test-…` placeholder, ~14 chars). Anyone who reads the file can forge job-service requests. | **High** | Replace with a high-entropy secret, store in the protected secret wrapper, and reference by env var. |
 | 3 | **The gateway is reachable from the public internet** at `/gw`. It is gated by `app_token`, but the surface exists. | Medium | Acceptable, or restrict funnel to specific paths / add allowlist. Consider whether the app should use the tailnet-only `:3011` URL instead of the public funnel. |
-| 4 | `web/.env.local` is mode `0644` (group/world-readable) while `shared/gateway/config.json` is `0600`. | Medium | `chmod 600 web/.env.local`. |
-| 5 | Stale docs: `ARCHITECTURE.md`, `WEB-DEPLOYMENT.md`, `REMOTE-ACCESS.md`, `web/README.md`, `docs/current-status.md` all describe the pre-backend state. | Medium | Update or mark superseded by this file. |
-| 6 | Uncommitted work in the tree: `shared/gateway/`, `shared/jobserver/`, `web/src/app/api/`, modified `web/.env.example`, `globals.css`, `page.tsx`, plus untracked `excel_to_pdf.py`, `generate_teacher_pdf.py`. | Medium | Commit and push (secrets must stay out). |
+| 4 | ~~`web/.env.local` was mode `0644`~~ — **RESOLVED 2026-10-23** (`chmod 600`). Note the file is gitignored, so this is a local-only fix and must be reapplied on a fresh clone. | — | `chmod 600 web/.env.local`. |
+| 5 | ~~Stale docs~~ — **RESOLVED 2026-10-23.** `ARCHITECTURE.md`, `WEB-DEPLOYMENT.md`, `REMOTE-ACCESS.md`, `web/README.md` and `docs/current-status.md` now carry a "superseded" banner pointing here, and the root `README.md` + `AGENTS.md` link to this file. | — | Keep the banners if those docs are rewritten. |
+| 6 | ~~Uncommitted work~~ — **RESOLVED 2026-10-23.** Gateway, job service, web API routes, the handoff doc and the doc banners are committed and pushed to `main`. `shared/gateway/config.json` is now gitignored. `excel_to_pdf.py` and `generate_teacher_pdf.py` remain untracked (unrelated user scripts). | — | Decide separately whether those two scripts belong in the repo. |
 | 7 | Job service rate limit is per-IP; behind the funnel all Vercel traffic may share egress IPs. | Low | Watch for 429s under real load. |
 
 ---

@@ -1,0 +1,17 @@
+[Unit]
+Description=e-ShikshaKosh report job service (allowlisted report runner, port 8787)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/prashant/projects/eshikshakosh-automation
+EnvironmentFile=/home/prashant/.config/systemd/user/esk-jobserver.env
+ExecStart=/home/prashant/projects/eshikshakosh-automation/.venv/bin/python shared/jobserver/server.py --host 127.0.0.1 --port 8787
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
