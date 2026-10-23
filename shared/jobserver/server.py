@@ -122,9 +122,11 @@ def recover_queued_jobs() -> None:
     """Restore queued work up to capacity; fail excess persisted jobs explicitly."""
     changed = False
     with _lock:
-        for job_id, job in _jobs.items():
-            if job.get("status") != "queued":
-                continue
+        waiting = sorted(
+            ((job_id, job) for job_id, job in _jobs.items() if job.get("status") == "queued"),
+            key=lambda item: (item[1].get("created_at", 0), item[0]),
+        )
+        for job_id, job in waiting:
             try:
                 _job_queue.put_nowait(job_id)
             except queue.Full:

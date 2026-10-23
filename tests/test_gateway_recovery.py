@@ -58,6 +58,36 @@ class GatewayRecoveryTests(unittest.TestCase):
         self.assertTrue(result.get("download_url"))
         self.assertIn(job_id, gateway._jobs)
 
+
+    def test_queued_job_status_refreshes_after_service_completes(self):
+        job_id = "1111222233334444"
+        queued = {"id": job_id, "status": "queued", "workflow": "roster", "created_at": 100, "output": None}
+        done = {"id": job_id, "status": "done", "workflow": "roster", "created_at": 100, "finished_at": 200, "output": str(self.output)}
+        with patch.object(gateway, "_job_request", side_effect=[queued, done]) as request:
+            first = gateway._status(job_id)
+            second = gateway._status(job_id)
+        self.assertEqual(first["status"], "queued")
+        self.assertIsNone(first["download_url"] if "download_url" in first else None)
+        self.assertEqual(second["status"], "done")
+        self.assertTrue(second["download_url"])
+        request.assert_any_call("GET", f"/jobs/{job_id}")
+        self.assertEqual(request.call_count, 2)
+
+    def test_download_links_are_single_use_and_not_reusable_after_gateway_restart(self):
+        job_id = "aabbccddeeff0011"
+        old_link = gateway.issue_link(job_id, self.output.name)
+        self.assertEqual(gateway.redeem_link(old_link), job_id)
+        with gateway._links_lock:
+            gateway._links.clear()  # simulate process restart: in-memory links are lost
+        with self.assertRaises(gateway.GatewayError) as err:
+            gateway.redeem_link(old_link)
+        self.assertEqual(err.exception.status, 404)
+        fresh_link = gateway.issue_link(job_id, self.output.name)
+        self.assertEqual(gateway.redeem_link(fresh_link), job_id)
+        with self.assertRaises(gateway.GatewayError) as err:
+            gateway.redeem_link(fresh_link)
+        self.assertEqual(err.exception.status, 410)
+
     def test_invalid_job_id_is_rejected_without_internal_request(self):
         with patch.object(gateway, "_job_request") as request:
             with self.assertRaises(gateway.GatewayError) as err:

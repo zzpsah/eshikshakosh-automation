@@ -177,6 +177,35 @@ class JobLifecycleTests(unittest.TestCase):
         self.assertEqual(job["status"], "failed")
         self.assertEqual(job["error"], "runner exited 7")
 
+
+    def test_corrupt_state_file_is_preserved_without_overwriting_memory(self):
+        jobserver.STATE_FILE.parent.mkdir(parents=True)
+        original = b'{"broken": '
+        jobserver.STATE_FILE.write_bytes(original)
+        jobserver._jobs["sentinel"] = {"id": "sentinel", "status": "done"}
+        jobserver.load_state()
+        self.assertIn("sentinel", jobserver._jobs)
+        self.assertEqual(jobserver.STATE_FILE.read_bytes(), original)
+
+    def test_restart_requeues_waiting_jobs_in_creation_order_without_replaying_running_job(self):
+        jobserver._job_queue = queue.Queue(maxsize=5)
+        jobserver.STATE_FILE.parent.mkdir(parents=True)
+        jobserver.STATE_FILE.write_text(json.dumps({
+            # Deliberately reverse insertion order: recovery must use creation time.
+            "new-waiting": {"id": "new-waiting", "status": "queued", "workflow": "roster", "created_at": 3},
+            "interrupted": {"id": "interrupted", "status": "running", "workflow": "student", "created_at": 2},
+            "old-waiting": {"id": "old-waiting", "status": "queued", "workflow": "student", "created_at": 1},
+        }))
+        jobserver.load_state()
+        jobserver.recover_queued_jobs()
+        self.assertEqual(jobserver._job_queue.get_nowait(), "old-waiting")
+        jobserver._job_queue.task_done()
+        self.assertEqual(jobserver._job_queue.get_nowait(), "new-waiting")
+        jobserver._job_queue.task_done()
+        self.assertTrue(jobserver._job_queue.empty())
+        self.assertEqual(jobserver._jobs["interrupted"]["status"], "failed")
+        self.assertEqual(jobserver._jobs["interrupted"]["error"], "interrupted_by_restart")
+
     def test_restart_recovery_marks_queued_jobs_over_capacity_failed(self):
         jobserver._job_queue = queue.Queue(maxsize=1)
         with jobserver._lock:
