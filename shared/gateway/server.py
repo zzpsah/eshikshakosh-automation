@@ -222,15 +222,25 @@ def _prune() -> None:
             if job.get("status") in ("done", "failed") and job.get("finished_at", 0) < horizon
         ]
         for jid in stale:
-            job = _jobs.pop(jid, None)
+            job = _jobs.get(jid)
+            # Only remove the cache record after its workbook was safely handled.
+            # Never let a cached path delete a file outside the configured root.
             if job and job.get("output"):
                 try:
-                    p = Path(job["output"])
+                    p = Path(job["output"]).resolve(strict=False)
+                    root = Path(cfg.get("output_root") or (Path.home() / "exports")).expanduser().resolve()
+                    if not p.is_relative_to(root):
+                        log.warning("retention: refusing path outside output root for job %s", jid)
+                        continue
                     if p.is_file():
+                        if any(part.lower() == "archive" for part in p.relative_to(root).parts[:-1]):
+                            continue
                         p.unlink()
-                        log.info("retention: removed workbook for job %s", jid)
+                        log.info("retention: removed expired report for job %s", jid)
                 except OSError as exc:
-                    log.warning("retention: could not remove workbook (%s)", type(exc).__name__)
+                    log.warning("retention: could not remove expired report (%s)", type(exc).__name__)
+                    continue
+            _jobs.pop(jid, None)
     if stale:
         log.info("retention: pruned %d job(s)", len(stale))
     _sweep_output_root(horizon, cfg)
@@ -246,7 +256,7 @@ def _sweep_output_root(horizon: float, cfg: dict[str, Any]) -> None:
     record was lost to a restart. Restricted to report extensions so unrelated
     files in the same directory are never touched.
     """
-    root = Path(cfg.get("output_root", Path.home() / "exports")).expanduser()
+    root = Path(cfg.get("output_root") or (Path.home() / "exports")).expanduser().resolve()
     if not root.is_dir():
         return
     removed = 0
@@ -254,10 +264,20 @@ def _sweep_output_root(horizon: float, cfg: dict[str, Any]) -> None:
         if not p.is_file() or p.suffix.lower() not in REPORT_SUFFIXES:
             continue
         # `archive/` holds historical workbooks that are kept permanently
-        # (see modules/student/README.md) — never sweep them.
-        if any(part.lower() == "archive" for part in p.relative_to(root).parts[:-1]):
+        # (see modules/student/README.md) — never sweep them. Resolve first so
+        # an archive symlink cannot escape the configured output root.
+        try:
+            relative = p.resolve(strict=True).relative_to(root)
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if p.is_symlink() or any(part.lower() == "archive" for part in relative.parts[:-1]):
             continue
         try:
+            resolved = p.resolve(strict=True)
+            # Symlinks and paths resolving outside the root are never cleanup targets.
+            resolved.relative_to(root)
+            if p.is_symlink():
+                continue
             if p.stat().st_mtime < horizon:
                 p.unlink()
                 removed += 1

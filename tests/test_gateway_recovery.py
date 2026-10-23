@@ -5,6 +5,8 @@ import importlib.util
 import json
 import tempfile
 import unittest
+import os
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -87,6 +89,66 @@ class GatewayRecoveryTests(unittest.TestCase):
         with self.assertRaises(gateway.GatewayError) as err:
             gateway.redeem_link(fresh_link)
         self.assertEqual(err.exception.status, 410)
+
+
+    def test_retention_sweep_removes_only_expired_report_files(self):
+        root = Path(self.temp.name)
+        old_file = root / "old.xlsx"
+        recent_file = root / "recent.xlsx"
+        archive_dir = root / "archive"
+        archive_dir.mkdir()
+        archived_file = archive_dir / "old.xlsx"
+        unrelated_file = root / "notes.txt"
+        for path in (old_file, recent_file, archived_file, unrelated_file):
+            path.write_bytes(b"fixture")
+        old_time = time.time() - 172800
+        os.utime(old_file, (old_time, old_time))
+        os.utime(archived_file, (old_time, old_time))
+        os.utime(unrelated_file, (old_time, old_time))
+        gateway._sweep_output_root(time.time() - 3600, {"output_root": str(root)})
+        self.assertFalse(old_file.exists())
+        self.assertTrue(recent_file.exists())
+        self.assertTrue(archived_file.exists())
+        self.assertTrue(unrelated_file.exists())
+
+    def test_retention_refuses_cached_output_outside_root(self):
+        root = Path(self.temp.name) / "exports"
+        root.mkdir()
+        cfg = json.loads(self.config.read_text())
+        cfg["output_root"] = str(root)
+        self.config.write_text(json.dumps(cfg))
+        outside = Path(self.temp.name) / "keep.xlsx"
+        outside.write_bytes(b"must be preserved")
+        old = time.time() - 172800
+        os.utime(outside, (old, old))
+        with gateway._jobs_lock:
+            gateway._jobs["old-job"] = {
+                "id": "old-job", "status": "done", "finished_at": old,
+                "output": str(outside), "created_at": old,
+            }
+        gateway._prune()
+        self.assertTrue(outside.exists())
+        self.assertIn("old-job", gateway._jobs)
+
+    def test_retention_does_not_delete_historical_archive_from_cached_job(self):
+        root = Path(self.temp.name) / "exports"
+        root.mkdir()
+        cfg = json.loads(self.config.read_text())
+        cfg["output_root"] = str(root)
+        self.config.write_text(json.dumps(cfg))
+        archive = root / "archive"
+        archive.mkdir(parents=True)
+        historical = archive / "historical.xlsx"
+        historical.write_bytes(b"archive fixture")
+        old = time.time() - 172800
+        os.utime(historical, (old, old))
+        with gateway._jobs_lock:
+            gateway._jobs["archive-job"] = {
+                "id": "archive-job", "status": "done", "finished_at": old,
+                "output": str(historical), "created_at": old,
+            }
+        gateway._prune()
+        self.assertTrue(historical.exists())
 
     def test_invalid_job_id_is_rejected_without_internal_request(self):
         with patch.object(gateway, "_job_request") as request:
