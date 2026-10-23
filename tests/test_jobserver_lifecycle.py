@@ -8,6 +8,7 @@ import subprocess
 import threading
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -34,6 +35,15 @@ class JobLifecycleTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    @staticmethod
+    def make_xlsx(path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("[Content_Types].xml", "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/></Types>")
+            archive.writestr("xl/workbook.xml", "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheets><sheet name=\"Report\" sheetId=\"1\"/></sheets></workbook>")
+            archive.writestr("xl/worksheets/sheet1.xml", "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>Report fixture</t></is></c></row></sheetData></worksheet>")
+        return path
+
     def test_restart_marks_running_failed_and_preserves_queued(self):
         jobserver.STATE_FILE.parent.mkdir(parents=True)
         jobserver.STATE_FILE.write_text(json.dumps({
@@ -53,8 +63,8 @@ class JobLifecycleTests(unittest.TestCase):
     def test_teacher_workbook_marker_wins_over_other_new_files(self):
         expected = self.exports / "Teacher_Details.xlsx"
         unrelated = self.exports / "unrelated.xlsx"
-        expected.write_bytes(b"workbook fixture")
-        unrelated.write_bytes(b"other fixture")
+        self.make_xlsx(expected)
+        self.make_xlsx(unrelated)
         job = {"id": "j1", "workflow": "detail", "status": "running"}
         before = set()
         result = subprocess.CompletedProcess([], 0, f"WORKBOOK={expected}\n", "")
@@ -69,8 +79,8 @@ class JobLifecycleTests(unittest.TestCase):
     def test_multiple_unmarked_workbooks_fail_instead_of_guessing(self):
         first = self.exports / "first.xlsx"
         second = self.exports / "second.xlsx"
-        first.write_bytes(b"first")
-        second.write_bytes(b"second")
+        self.make_xlsx(first)
+        self.make_xlsx(second)
         job = {"id": "j2", "workflow": "roster", "status": "running"}
         result = subprocess.CompletedProcess([], 0, "no marker\n", "")
         with patch.object(jobserver, "build_command", return_value=([], {})), \
@@ -108,6 +118,40 @@ class JobLifecycleTests(unittest.TestCase):
         persisted = json.loads(jobserver.STATE_FILE.read_text())
         self.assertEqual(len(persisted), 20)
         self.assertEqual(set(persisted), {f"job-{i}" for i in range(20)})
+
+
+    def test_valid_workbook_passes_integrity_validation(self):
+        workbook = self.make_xlsx(self.exports / "valid.xlsx")
+        self.assertEqual(jobserver.validate_workbook(workbook), (True, "ok"))
+
+    def test_corrupt_workbook_is_rejected(self):
+        workbook = self.exports / "corrupt.xlsx"
+        workbook.write_bytes(b"not a zip workbook" * 20)
+        valid, reason = jobserver.validate_workbook(workbook)
+        self.assertFalse(valid)
+        self.assertEqual(reason, "workbook is corrupt or unreadable")
+
+    def test_workbook_outside_export_root_is_rejected(self):
+        outside = Path(self.temp.name) / "outside.xlsx"
+        self.make_xlsx(outside)
+        valid, reason = jobserver.validate_workbook(outside)
+        self.assertFalse(valid)
+        self.assertEqual(reason, "output path is missing or outside the export directory")
+
+    def test_runner_cannot_mark_corrupt_workbook_done(self):
+        workbook = self.exports / "broken.xlsx"
+        workbook.write_bytes(b"broken workbook" * 20)
+        job = {"id": "broken-job", "workflow": "roster", "status": "running"}
+        jobserver._jobs[job["id"]] = job
+        result = subprocess.CompletedProcess([], 0, f"WORKBOOK={workbook}\n", "")
+        with patch.object(jobserver, "build_command", return_value=([], {})), \
+             patch.object(jobserver.subprocess, "run", return_value=result), \
+             patch.object(jobserver, "_snapshot_exports", side_effect=[set(), {str(workbook)}]), \
+             patch.object(jobserver, "audit"):
+            jobserver._execute(job)
+        self.assertEqual(job["status"], "failed")
+        self.assertTrue(job["error"].startswith("invalid_output:"))
+        self.assertIsNone(job.get("output"))
 
     def test_runner_timeout_is_recorded_as_terminal_failure(self):
         job = {"id": "timeout-job", "workflow": "student", "status": "running"}

@@ -27,6 +27,8 @@ import re
 import subprocess
 import threading
 import time
+import zipfile
+import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -151,6 +153,43 @@ def _snapshot_exports() -> set[str]:
     return {str(p) for p in EXPORTS.rglob("*") if p.is_file()}
 
 
+def validate_workbook(path: str | Path) -> tuple[bool, str]:
+    """Validate that a report is a readable XLSX workbook within exports."""
+    try:
+        candidate = Path(path).expanduser().resolve(strict=True)
+        export_root = EXPORTS.resolve(strict=True)
+        candidate.relative_to(export_root)
+    except (OSError, RuntimeError, ValueError):
+        return False, "output path is missing or outside the export directory"
+
+    if candidate.suffix.lower() != ".xlsx":
+        return False, "output is not an XLSX workbook"
+    try:
+        if not candidate.is_file() or candidate.stat().st_size < 100:
+            return False, "workbook file is empty or too small"
+        with zipfile.ZipFile(candidate, "r") as archive:
+            names = set(archive.namelist())
+            if "[Content_Types].xml" not in names or "xl/workbook.xml" not in names:
+                return False, "workbook structure is incomplete"
+            sheet_files = sorted(
+                name for name in names
+                if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", name)
+            )
+            if not sheet_files:
+                return False, "workbook contains no worksheets"
+            # Parse key XML parts so a truncated or malformed ZIP is not accepted.
+            ET.fromstring(archive.read("[Content_Types].xml"))
+            workbook_root = ET.fromstring(archive.read("xl/workbook.xml"))
+            sheet_nodes = workbook_root.findall(".//{*}sheet")
+            if not sheet_nodes or len(sheet_nodes) != len(sheet_files):
+                return False, "workbook sheet metadata is inconsistent"
+            for sheet_name in sheet_files:
+                ET.fromstring(archive.read(sheet_name))
+    except (OSError, zipfile.BadZipFile, KeyError, ET.ParseError, RuntimeError):
+        return False, "workbook is corrupt or unreadable"
+    return True, "ok"
+
+
 def build_command(job: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
     wf = job["workflow"]
     env = dict(os.environ)
@@ -244,9 +283,13 @@ def _execute(job: dict[str, Any]) -> None:
 
         if proc.returncode != 0:
             error = f"runner exited {proc.returncode}"
-        elif output and Path(output).is_file():
-            status = "done"
-            output_path = str(Path(output).resolve())
+        elif output:
+            valid, validation_error = validate_workbook(output)
+            if valid:
+                status = "done"
+                output_path = str(Path(output).resolve())
+            else:
+                error = f"invalid_output: {validation_error}"
         elif not output and len([p for p in new_files if Path(p).suffix.lower() == ".xlsx"]) > 1:
             error = "ambiguous output files"
         else:
