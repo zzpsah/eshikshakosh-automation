@@ -59,6 +59,7 @@ DEFAULTS: dict[str, Any] = {
     "job_url": "http://127.0.0.1:8787",
     "download_ttl": 600,
     "retention_hours": 24,
+    "output_root": str(Path.home() / "exports"),
     "max_jobs": 200,
     "allow_public": False,
     # Secrets are allowed through the loader but never written by this process
@@ -205,8 +206,15 @@ def _view(job: dict[str, Any]) -> dict[str, Any]:
 
 
 def _prune() -> None:
-    """Delete finished jobs and their workbooks past the retention window."""
-    horizon = time.time() - int(load_config().get("retention_hours", 24)) * 3600
+    """Delete finished jobs and their workbooks past the retention window.
+
+    Two passes: jobs still tracked in memory, then a sweep of the output root by
+    mtime. The sweep is what actually holds retention across a restart — the
+    in-memory job list is lost on every restart, so without it orphaned workbooks
+    accumulate forever.
+    """
+    cfg = load_config()
+    horizon = time.time() - int(cfg.get("retention_hours", 24)) * 3600
     with _jobs_lock:
         stale = [
             jid
@@ -225,6 +233,34 @@ def _prune() -> None:
                     log.warning("retention: could not remove workbook (%s)", type(exc).__name__)
     if stale:
         log.info("retention: pruned %d job(s)", len(stale))
+    _sweep_output_root(horizon, cfg)
+
+
+REPORT_SUFFIXES = {".xlsx", ".csv", ".pdf", ".zip"}
+
+
+def _sweep_output_root(horizon: float, cfg: dict[str, Any]) -> None:
+    """Unlink report files older than `horizon` anywhere under the output root.
+
+    Independent of in-memory job state, so it also reclaims workbooks whose job
+    record was lost to a restart. Restricted to report extensions so unrelated
+    files in the same directory are never touched.
+    """
+    root = Path(cfg.get("output_root", Path.home() / "exports")).expanduser()
+    if not root.is_dir():
+        return
+    removed = 0
+    for p in root.rglob("*"):
+        if not p.is_file() or p.suffix.lower() not in REPORT_SUFFIXES:
+            continue
+        try:
+            if p.stat().st_mtime < horizon:
+                p.unlink()
+                removed += 1
+        except OSError as exc:
+            log.warning("retention: could not remove %s (%s)", p.name, type(exc).__name__)
+    if removed:
+        log.info("retention: swept %d orphaned workbook(s) from %s", removed, root)
 
 
 def _retention_loop() -> None:
