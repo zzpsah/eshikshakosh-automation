@@ -22,6 +22,7 @@ import hashlib
 import hmac
 import json
 import os
+import queue
 import re
 import subprocess
 import threading
@@ -50,23 +51,46 @@ SESSION_RE = re.compile(r"^\d{4}-\d{2}$")
 
 # ------------------------------------------------------------- job store --
 
-_lock = threading.Lock()
+_lock = threading.RLock()
 _jobs: dict[str, dict[str, Any]] = {}
+_job_queue: queue.Queue[str] = queue.Queue()
 
 
 def load_state() -> None:
-    if STATE_FILE.exists():
-        try:
-            _jobs.update(json.loads(STATE_FILE.read_text()))
-        except Exception:
-            pass
+    """Load persisted jobs and reconcile jobs interrupted by a service restart."""
+    if not STATE_FILE.exists():
+        return
+    try:
+        data = json.loads(STATE_FILE.read_text())
+        if not isinstance(data, dict):
+            return
+        with _lock:
+            _jobs.clear()
+            for job_id, job in data.items():
+                if not isinstance(job, dict):
+                    continue
+                if job.get("status") == "running":
+                    job = dict(job)
+                    job.update(
+                        status="failed",
+                        error="interrupted_by_restart",
+                        finished_at=time.time(),
+                    )
+                _jobs[str(job_id)] = job
+    except (OSError, json.JSONDecodeError):
+        # Keep the service available if state is temporarily unreadable; do not
+        # overwrite the file here, because it may still be recoverable.
+        return
 
 
 def save_state() -> None:
+    """Atomically persist one consistent snapshot of the job store."""
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     tmp = STATE_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(_jobs, indent=2))
-    tmp.replace(STATE_FILE)
+    with _lock:
+        payload = json.dumps(_jobs, indent=2)
+        tmp.write_text(payload)
+        tmp.replace(STATE_FILE)
 
 
 def audit(action: str, **fields: Any) -> None:
@@ -105,19 +129,42 @@ def build_command(job: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
     return cmd, env
 
 
-_run_lock = threading.Lock()
-
 
 def run_job(job_id: str) -> None:
-    job = _jobs[job_id]
-    job["status"] = "running"
-    job["started_at"] = time.time()
-    save_state()
+    # Called only by the single queue worker. A job remains queued until the
+    # worker actually starts it, so API polling reflects its real lifecycle.
+    with _lock:
+        job = _jobs.get(job_id)
+        if not job or job.get("status") != "queued":
+            return
+        job["status"] = "running"
+        job["started_at"] = time.time()
+        save_state()
+    _execute(job)
 
-    # The runners move files out of the repo root and into ~/exports, so two
-    # concurrent runs would race on the same workbooks. Serialize execution.
-    with _run_lock:
-        _execute(job)
+
+def _worker_loop() -> None:
+    while True:
+        job_id = _job_queue.get()
+        try:
+            run_job(job_id)
+        except Exception as exc:  # keep one persistence/runtime failure from killing the worker
+            with _lock:
+                job = _jobs.get(job_id)
+                if job and job.get("status") in {"queued", "running"}:
+                    job["status"] = "failed"
+                    job["error"] = f"worker_error:{type(exc).__name__}"
+                    job["finished_at"] = time.time()
+                    try:
+                        save_state()
+                    except OSError:
+                        pass
+            try:
+                audit("job_worker_error", job=job_id, error=type(exc).__name__)
+            except OSError:
+                pass
+        finally:
+            _job_queue.task_done()
 
 
 def _execute(job: dict[str, Any]) -> None:
@@ -135,20 +182,31 @@ def _execute(job: dict[str, Any]) -> None:
         after = _snapshot_exports()
         new_files = sorted(after - before)
 
+        # Each current runner emits an explicit machine-readable output marker.
+        # Only use the filesystem delta as a compatibility fallback when exactly
+        # one workbook appeared; never guess between multiple candidate reports.
+        marker = "REPORT_READY" if job["workflow"] == "student" else (
+            "WORKBOOK" if job["workflow"] in {"roster", "detail"} else ""
+        )
         output: str | None = None
-        if job["workflow"] == "student":
-            m = re.search(r"^REPORT_READY=(.+)$", proc.stdout, re.M)
-            if m:
-                output = m.group(1).strip()
-        if not output and new_files:
-            output = new_files[-1]
+        if marker:
+            matches = re.findall(rf"^{marker}=(.+)$", proc.stdout, re.M)
+            if matches:
+                output = matches[-1].strip()
+        if not output:
+            candidates = [p for p in new_files if Path(p).suffix.lower() == ".xlsx"]
+            if len(candidates) == 1:
+                output = candidates[0]
 
         if proc.returncode != 0:
             job["status"] = "failed"
             job["error"] = f"runner exited {proc.returncode}"
         elif output and Path(output).is_file():
             job["status"] = "done"
-            job["output"] = output
+            job["output"] = str(Path(output).resolve())
+        elif not output and len([p for p in new_files if Path(p).suffix.lower() == ".xlsx"]) > 1:
+            job["status"] = "failed"
+            job["error"] = "ambiguous output files"
         else:
             job["status"] = "failed"
             job["error"] = "no output file produced"
@@ -159,8 +217,9 @@ def _execute(job: dict[str, Any]) -> None:
         job["status"] = "failed"
         job["error"] = type(exc).__name__
 
-    job["finished_at"] = time.time()
-    save_state()
+    with _lock:
+        job["finished_at"] = time.time()
+        save_state()
     audit("job_finished", job=job["id"], workflow=job["workflow"], status=job["status"])
 
 
@@ -296,10 +355,10 @@ class Handler(BaseHTTPRequestHandler):
         )
         with _lock:
             _jobs[job_id] = job
-        save_state()
+            save_state()
         audit("job_created", job=job_id, workflow=workflow)
 
-        threading.Thread(target=run_job, args=(job_id,), daemon=True).start()
+        _job_queue.put(job_id)
         self._json(201, {"id": job_id, "status": "queued"})
 
     # -- job views -------------------------------------------------------
@@ -346,6 +405,12 @@ def main() -> None:
     if not TOKEN:
         raise SystemExit("JOB_SERVER_TOKEN is not set")
     load_state()
+    # Requeue jobs accepted before a restart; jobs that were actively running
+    # are marked failed by load_state and are not replayed automatically.
+    for job_id, job in list(_jobs.items()):
+        if job.get("status") == "queued":
+            _job_queue.put(job_id)
+    threading.Thread(target=_worker_loop, name="jobserver-worker", daemon=True).start()
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     audit("server_start", host=HOST, port=PORT)
     print(f"jobserver listening on {HOST}:{PORT}", flush=True)
