@@ -126,6 +126,11 @@ exports directory before/after the subprocess.
 **Other properties:** subprocess timeout 900 s, single-run lock (runs are serialized),
 per-IP rate limit 20 req/60 s, audit log records actions/outcomes only.
 
+**Runner output is surfaced.** `_execute` captures the runner's stdout/stderr, redacts
+any credential value it finds, bounds it to a 600-char tail, and stores it as `log`. A
+non-zero exit becomes `runner exited <code>: <last line>`. Credentials are excluded from
+`save_state`, so `log` is the only runner text ever persisted — and it is redacted first.
+
 **State files:**
 
 | Path | Content |
@@ -154,6 +159,14 @@ gateway unreachable → HTTP 502.
 **The download route matters:** the signed link is single-use and short-lived, so the
 route mints and redeems it **server-side**, then streams the bytes. The browser only
 ever sees the job id — never the signed token, never a server path.
+
+**Credentials are optional per run.** The form has a Credentials panel: empty fields mean
+"fall back to the VPS vault", filled fields mean "use these for this run only". The
+values travel `username`/`password` → gateway → job service → runner **environment
+variables** (never `argv`, so they cannot leak through `ps`). They are stripped from
+every persisted record and every API response; the UI shows a "credentials are never
+stored" note. A failed run renders its redacted runner output in a collapsible
+**Runner output** panel, so a wrong password is distinguishable from a network fault.
 
 Env vars (`.env.example` is committed; `.env.local` and Vercel project env hold values):
 
@@ -397,6 +410,7 @@ by replaying the four route calls with a valid `ESK_GATEWAY_TOKEN`.
 | 5 | ~~Stale docs~~ — **RESOLVED 2026-10-23.** `ARCHITECTURE.md`, `WEB-DEPLOYMENT.md`, `REMOTE-ACCESS.md`, `web/README.md` and `docs/current-status.md` now carry a "superseded" banner pointing here, and the root `README.md` + `AGENTS.md` link to this file. | — | Keep the banners if those docs are rewritten. |
 | 6 | ~~Uncommitted work~~ — **RESOLVED 2026-10-23.** Gateway, job service, web API routes, the handoff doc and the doc banners are committed and pushed to `main`. `shared/gateway/config.json` is now gitignored. `excel_to_pdf.py` and `generate_teacher_pdf.py` remain untracked (unrelated user scripts). | — | Decide separately whether those two scripts belong in the repo. |
 | 7 | Job service rate limit is per-IP; behind the funnel all Vercel traffic may share egress IPs. | Low | Watch for 429s under real load. |
+| 8 | ~~A failed job returned only `runner exited 1`.~~ — **RESOLVED 2026-10-23.** The job service discarded the runner's stdout/stderr, so an operator typing portal credentials could not tell a wrong password from a missing secret or a network fault. It now captures, redacts and bounds the output to a 600-char `log`, includes the runner's last line in `error`, and forwards `log` through the gateway; the UI renders it in a collapsible **Runner output** panel. Verified live: a dummy-credential run returned `runner exited 1: RuntimeError: Portal login failed with HTTP 422` with no credential value anywhere in the response or `jobs.json`. | — | No action. If a runner ever starts echoing more than 600 chars of value, raise `LOG_TAIL_CHARS`. |
 
 ---
 
