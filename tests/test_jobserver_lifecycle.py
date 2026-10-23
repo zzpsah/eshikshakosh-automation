@@ -44,6 +44,29 @@ class JobLifecycleTests(unittest.TestCase):
             archive.writestr("xl/worksheets/sheet1.xml", "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>Report fixture</t></is></c></row></sheetData></worksheet>")
         return path
 
+
+    def test_job_status_view_never_returns_one_time_credentials(self):
+        job_id = "credential-job"
+        jobserver._jobs[job_id] = {
+            "id": job_id, "status": "queued", "workflow": "roster",
+            "username": "operator-login", "password": "synthetic-secret",
+            "created_at": 100, "output": None,
+        }
+
+        class FakeHandler:
+            response = None
+            def _json(self, code, payload):
+                self.response = (code, payload)
+
+        handler = FakeHandler()
+        jobserver.Handler._get_job(handler, job_id)
+        code, payload = handler.response
+        self.assertEqual(code, 200)
+        self.assertEqual(payload["id"], job_id)
+        self.assertNotIn("username", payload)
+        self.assertNotIn("password", payload)
+        self.assertEqual(jobserver._jobs[job_id]["password"], "synthetic-secret")
+
     def test_restart_marks_running_failed_and_preserves_queued(self):
         jobserver.STATE_FILE.parent.mkdir(parents=True)
         jobserver.STATE_FILE.write_text(json.dumps({

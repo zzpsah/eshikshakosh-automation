@@ -461,7 +461,10 @@ class Handler(BaseHTTPRequestHandler):
         if not job:
             self._json(404, {"error": "not found"})
             return
-        self._json(200, job)
+        # One-time credentials stay in the in-memory record only long enough for
+        # the runner. Never expose them through the authenticated status API.
+        public_job = {k: v for k, v in job.items() if k not in CREDENTIAL_FIELDS}
+        self._json(200, public_job)
 
     def _download(self, job_id: str) -> None:
         job = _jobs.get(job_id)
