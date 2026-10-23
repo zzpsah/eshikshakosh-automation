@@ -1,5 +1,9 @@
 # School Data Desk — e-ShikshaKosh workflow portal
 
+> **Superseded for connectivity.** The app now generates reports in-browser via a
+> gateway on the Oracle VPS; it is no longer a command-copying guide. Current
+> architecture and paths: [`../docs/HANDOFF-WEB-CONNECTIVITY.md`](../docs/HANDOFF-WEB-CONNECTIVITY.md).
+
 This is the Next.js frontend deployed as the Vercel project `eshikshakosh`.
 
 ## Current purpose

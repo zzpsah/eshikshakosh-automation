@@ -1,5 +1,11 @@
 # Architecture
 
+> **Superseded for web/backend connectivity.** This document predates the report
+> gateway and job service. The working system — gateway, job service, Tailscale
+> funnel path, auth hops and full path map — is documented in
+> [`docs/HANDOFF-WEB-CONNECTIVITY.md`](HANDOFF-WEB-CONNECTIVITY.md). Read that
+> first and verify live state before relying on anything here.
+
 ## Two execution paths
 
 ### Safe manual/Colab path

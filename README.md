@@ -2,6 +2,8 @@
 
 Private, read-only automation for student OTR and teacher reports. The repository is organized by functional module so future modules can be added without mixing scripts.
 
+**Start here for the web app:** [`docs/HANDOFF-WEB-CONNECTIVITY.md`](docs/HANDOFF-WEB-CONNECTIVITY.md) — the Vercel app, the VPS gateway and job service, the Tailscale funnel path, and every full path. It supersedes the older architecture/deployment docs.
+
 ## Modules
 
 | Module | Purpose | Entry point | Documentation |
@@ -9,7 +11,7 @@ Private, read-only automation for student OTR and teacher reports. The repositor
 | Student | Student OTR exports and preserved Colab notebooks | `modules/student/run_report.sh` (VPS launcher: `~/.local/bin/eshikshakosh-report`) | [Student README](modules/student/README.md) |
 | Teacher | Teacher roster and full-profile exports | `modules/teacher/run_teacher_report.sh`, `modules/teacher/run_teacher_detail_report.sh` | [Teacher README](modules/teacher/README.md) · [Script inventory](modules/teacher/TEACHER_SCRIPTS.md) |
 | Shared | School registry, credential wrapper config, common support files | `shared/` | [VPS path map](docs/VPS-PATHS.md) |
-| Web portal | Vercel Next.js command guide (not yet a report backend) | `web/` | [Web README](web/README.md) |
+| Web portal | Report workbench (Next.js) backed by the VPS gateway + job service | `web/` | [Handoff — connectivity & paths](docs/HANDOFF-WEB-CONNECTIVITY.md) · [Web README](web/README.md) |
 
 ## Oracle VPS canonical paths
 

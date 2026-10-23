@@ -1,5 +1,10 @@
 # eShikshaKosh web deployment
 
+> **Superseded.** The app is no longer a command guide — it is a connected
+> report workbench backed by a gateway on the Oracle VPS. Current state:
+> [`docs/HANDOFF-WEB-CONNECTIVITY.md`](HANDOFF-WEB-CONNECTIVITY.md).
+> This file is retained for the Vercel project/alias history only.
+
 ## Current deployment — 9 October 2026
 
 - GitHub source: `zzpsah/eshikshakosh-automation`, branch `main`.

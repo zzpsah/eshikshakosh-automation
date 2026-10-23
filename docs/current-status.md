@@ -1,5 +1,9 @@
 # Current Status
 
+> **Superseded.** Verified state as of 2026-10-23 is in
+> [`docs/HANDOFF-WEB-CONNECTIVITY.md`](HANDOFF-WEB-CONNECTIVITY.md), including
+> the live service list, ports and known gaps.
+
 Verified 2026-10-17.
 
 - Root safe exporter repaired and compiles.

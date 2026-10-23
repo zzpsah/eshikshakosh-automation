@@ -6,7 +6,7 @@ Before substantial work:
 
 1. Read `DEVOS.md`.
 2. Read `PRD.md`, `RULES.md`, and `TASKS.md`.
-3. Read `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/TEST_PLAN.md`, `docs/SECURITY.md`, `docs/DECISIONS.md`, and `docs/MEMORY.md`.
+3. Read `docs/HANDOFF-WEB-CONNECTIVITY.md` first for anything touching the web app, gateway, job service or VPS connectivity — it supersedes `docs/ARCHITECTURE.md` and `docs/WEB-DEPLOYMENT.md` for that surface. Then read `docs/DESIGN.md`, `docs/TEST_PLAN.md`, `docs/SECURITY.md`, `docs/DECISIONS.md`, and `docs/MEMORY.md`.
 4. Read `.ai/PROJECT.md`, `.ai/CURRENT-STATE.md`, `.ai/ARCHITECTURE.md`, `.ai/DECISIONS.md`, and `.ai/TASKS.md`.
 5. Inspect current source, runner scripts, skill, and Git history before changing behavior.
 6. For student-report requests, preserve the verified local-runner path.
