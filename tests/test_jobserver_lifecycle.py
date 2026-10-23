@@ -198,7 +198,44 @@ class JobLifecycleTests(unittest.TestCase):
              patch.object(jobserver, "audit"):
             jobserver._execute(job)
         self.assertEqual(job["status"], "failed")
-        self.assertEqual(job["error"], "runner exited 7")
+        # The runner's own last line is appended so an operator can diagnose the failure.
+        self.assertEqual(job["error"], "runner exited 7: synthetic failure")
+        self.assertEqual(job["log"], "synthetic failure")
+
+    def test_runner_output_is_redacted_and_bounded_before_it_is_stored(self):
+        job = {
+            "id": "redact-job",
+            "workflow": "student",
+            "status": "running",
+            "username": "10130106304",
+            "password": "S3cret-Pw-xyz",
+        }
+        jobserver._jobs[job["id"]] = job
+        # Credential values appear on the FIRST line (likely to be cut by the tail)
+        # and on the LAST line (the part an operator actually sees).
+        result = subprocess.CompletedProcess(
+            [], 1, "", "password=S3cret-Pw-xyz user=10130106304\n" + "X" * 5000
+            + "\nRuntimeError: login rejected for user=10130106304"
+        )
+        with patch.object(jobserver, "build_command", return_value=([], {})), \
+             patch.object(jobserver.subprocess, "run", return_value=result), \
+             patch.object(jobserver, "_snapshot_exports", side_effect=[set(), set()]), \
+             patch.object(jobserver, "audit"):
+            jobserver._execute(job)
+
+        log = job["log"]
+        # Redaction runs over the WHOLE output before bounding, so neither the
+        # truncated head nor the retained tail can carry a credential value.
+        self.assertNotIn("S3cret-Pw-xyz", log)
+        self.assertNotIn("10130106304", log)
+        self.assertIn("<redacted>", log)
+        # Bounded: a runaway runner cannot grow the job record without limit.
+        self.assertLessEqual(len(log), jobserver.LOG_TAIL_CHARS + 3)
+
+        # And nothing credential-shaped survives into the persisted record.
+        stored = json.loads(jobserver.STATE_FILE.read_text())["redact-job"]
+        self.assertNotIn("password", stored)
+        self.assertNotIn("S3cret-Pw-xyz", json.dumps(stored))
 
 
     def test_corrupt_state_file_is_preserved_without_overwriting_memory(self):
