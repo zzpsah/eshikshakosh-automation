@@ -14,3 +14,6 @@ local-script/*_intercept.py
 
 # Local Vercel project links and deployment metadata
 .vercel/
+
+# Operator-owned secrets — never commit
+shared/gateway/config.json

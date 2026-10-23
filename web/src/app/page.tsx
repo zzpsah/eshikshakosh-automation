@@ -1,157 +1,93 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /* ------------------------------------------------------------------ */
-/* Data — every value below is a real fact about the repository.       */
+/* Types — the shape is owned by the gateway, this only mirrors it.     */
 /* ------------------------------------------------------------------ */
 
-const SCHOOLS = [
-  { value: "Sahaspur", label: "UMV Sahaspur" },
-  { value: "Tetahali", label: "UCHCH Madhyamik Vidyalaya Tetahali" },
-];
+type School = { key: string; label: string; udise: string };
+type Workflow = { name: string; tag: string; scope: string };
+type Workflows = Record<string, Workflow>;
 
-const WORKFLOWS = [
-  {
-    id: "student",
-    name: "Student details",
-    group: "Student",
-    tag: "OTR",
-    summary:
-      "Class, section or stream scoped student workbook for one school. Written to the repository root with mode 0600.",
-    entry: "~/.local/bin/eshikshakosh-report",
-    output: "Student_Details_<School>_<Session>.xlsx",
-    scope: "Classes 9-12 · class / section / stream filters",
-    facts: [
-      ["Output", "Student_Details_<School>_<Session>.xlsx"],
-      ["Scope", "Classes 9-12 · class / section / stream filters"],
-      ["Privacy", "full or masked (default: full)"],
-      ["Credentials", "Bitwarden, read-only"],
-    ],
-    steps: [
-      "Run the command on the Oracle VPS.",
-      "The runner asks for the session year, then the school.",
-      "The workbook is written to the repository root, mode 0600.",
-    ],
-    caution:
-      "Student records include Aadhaar, bank and contact fields. Keep the file inside the repository and never commit it.",
-  },
-  {
-    id: "roster",
-    name: "Teacher roster",
-    group: "Teacher",
-    tag: "LIST",
-    summary:
-      "One row per teacher with readable labels and a combined address. Built from the list API merged with registration info.",
-    entry: "modules/teacher/run_teacher_report.sh",
-    output: "~/exports/Teachers_<School>_browser_<timestamp>.xlsx",
-    scope: "All teachers of the selected school",
-    facts: [
-      ["Output", "Teachers_<School>_browser_<timestamp>.xlsx"],
-      ["Columns", "28 · labels, not raw codes"],
-      ["Address", "single cell, labelled"],
-      ["Credentials", "Bitwarden, read-only"],
-    ],
-    steps: [
-      "Run the command on the Oracle VPS.",
-      "Pick the school when prompted — it never assumes one.",
-      "The runner logs in, captures the session and writes the workbook.",
-    ],
-    caution:
-      "The roster carries mobile, PAN and Aadhaar values. Treat it as personal data.",
-  },
-  {
-    id: "detail",
-    name: "Full teacher profiles",
-    group: "Teacher",
-    tag: "DETAIL",
-    summary:
-      "Seven sheets per teacher: registration, education, professional, other, training and service history.",
-    entry: "modules/teacher/run_teacher_detail_report.sh",
-    output: "~/exports/Teacher_Details_<School>_<timestamp>.xlsx",
-    scope: "All teachers of the selected school",
-    facts: [
-      ["Output", "Teacher_Details_<School>_<timestamp>.xlsx"],
-      ["Sheets", "7 · Teachers, Registration, Education, Professional, Other, Training, Service"],
-      ["Credentials", "Bitwarden, read-only"],
-    ],
-    steps: [
-      "Run the command on the Oracle VPS.",
-      "Pick the school when prompted — it never assumes one.",
-      "Set ESHIKSHAKOSH_DETAIL_LIMIT=N to cap the run while testing.",
-    ],
-    caution:
-      "Service history can include previous postings. Verify before sharing outside the school.",
-  },
-] as const;
+type Config = {
+  schools: School[];
+  workflows: Workflows;
+  classes: string[];
+  modes: string[];
+  session: string;
+  download_ttl: number;
+};
 
-type WorkflowId = (typeof WORKFLOWS)[number]["id"];
+type Job = {
+  id: string;
+  status: "queued" | "running" | "done" | "failed";
+  workflow: string;
+  file_name: string | null;
+  file_bytes: number | null;
+  error?: string;
+};
 
-const REFERENCE = [
-  {
-    wf: "Student details",
-    entry: "~/.local/bin/eshikshakosh-report",
-    output: "Student_Details_<School>_<Session>.xlsx",
-    scope: "Classes 9-12 · class / section / stream",
-  },
-  {
-    wf: "Teacher roster",
-    entry: "modules/teacher/run_teacher_report.sh --school <School>",
-    output: "Teachers_<School>_browser_<timestamp>.xlsx",
-    scope: "All teachers of the school",
-  },
-  {
-    wf: "Full teacher profiles",
-    entry: "modules/teacher/run_teacher_detail_report.sh --school <School>",
-    output: "Teacher_Details_<School>_<timestamp>.xlsx",
-    scope: "All teachers of the school",
-  },
-];
+const WORKFLOW_ORDER = ["student", "roster", "detail"] as const;
+const WORKFLOW_GROUP: Record<string, string> = {
+  student: "Student",
+  roster: "Teacher",
+  detail: "Teacher",
+};
+const WORKFLOW_SUMMARY: Record<string, string> = {
+  student:
+    "Class-scoped student workbook for one school, built from the e-ShikshaKosh OTR data.",
+  roster:
+    "One row per teacher with readable labels and a combined address, for the selected school.",
+  detail:
+    "Seven sheets per teacher — registration, education, professional, other, training and service history.",
+};
+const WORKFLOW_SCOPE: Record<string, string> = {
+  student: "Classes 9-12 · class / privacy filters",
+  roster: "All teachers of the selected school",
+  detail: "All teachers of the selected school",
+};
+const WORKFLOW_CAUTION: Record<string, string> = {
+  student:
+    "Student records include Aadhaar, bank and contact fields. The workbook is personal data — keep it private.",
+  roster: "The roster carries mobile, PAN and Aadhaar values. Treat it as personal data.",
+  detail:
+    "Service history can include previous postings. Verify before sharing outside the school.",
+};
+
+const CLASS_LABELS: Record<string, string> = {
+  "": "All classes",
+  "9": "Class 9",
+  "10": "Class 10",
+  "11": "Class 11",
+  "12": "Class 12",
+};
+
+const STATUS_LABEL: Record<Job["status"], string> = {
+  queued: "Queued",
+  running: "Running",
+  done: "Ready",
+  failed: "Failed",
+};
+
+const POLL_MS = 3000;
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-function buildCommand(id: WorkflowId, school: string, cls: string, mode: string) {
-  if (id === "student") {
-    const parts = ["~/.local/bin/eshikshakosh-report"];
-    if (cls !== "all") parts.push(`--class ${cls}`);
-    if (mode === "masked") parts.push("--mode masked");
-    return parts.join(" ");
-  }
-  const entry = WORKFLOWS.find((w) => w.id === id)!.entry;
-  return `${entry} --school ${school}`;
+function formatBytes(bytes: number | null): string {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [state, setState] = useState<"idle" | "done" | "error">("idle");
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(text);
-      setState("done");
-    } catch {
-      setState("error");
-    }
-    window.setTimeout(() => setState("idle"), 1800);
-  }
-
+function ErrorNote({ message }: { message: string }) {
   return (
-    <>
-      <button
-        type="button"
-        className="copy"
-        data-state={state === "done" ? "done" : undefined}
-        onClick={copy}
-      >
-        {state === "done" ? "Copied" : "Copy"}
-      </button>
-      <p className="copy-note" aria-live="polite">
-        {state === "error"
-          ? "Clipboard blocked — select the command and copy it manually."
-          : "Run this on the Oracle VPS. This page does not run reports."}
-      </p>
-    </>
+    <p className="job-error" role="alert">
+      {message}
+    </p>
   );
 }
 
@@ -160,13 +96,131 @@ function CopyButton({ text }: { text: string }) {
 /* ------------------------------------------------------------------ */
 
 export default function Page() {
-  const [wf, setWf] = useState<WorkflowId>("student");
-  const [school, setSchool] = useState(SCHOOLS[0].value);
-  const [cls, setCls] = useState("all");
-  const [mode, setMode] = useState<"full" | "masked">("full");
+  const [cfg, setCfg] = useState<Config | null>(null);
+  const [cfgError, setCfgError] = useState<string | null>(null);
 
-  const active = WORKFLOWS.find((w) => w.id === wf)!;
-  const command = buildCommand(wf, school, cls, mode);
+  const [wf, setWf] = useState<string>("student");
+  const [school, setSchool] = useState<string>("");
+  const [cls, setCls] = useState<string>("");
+  const [mode, setMode] = useState<string>("full");
+
+  const [job, setJob] = useState<Job | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /* ---------------- config ---------------- */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/config", { cache: "no-store" });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          setCfgError(data.error ?? "Could not reach the report gateway.");
+          return;
+        }
+        setCfg(data as Config);
+        setCfgError(null);
+        setSchool((prev) => prev || (data.schools[0]?.key ?? ""));
+      } catch {
+        if (!cancelled) setCfgError("Could not reach the report gateway.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* ---------------- polling ---------------- */
+
+  const stopPolling = useCallback(() => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  }, []);
+
+  const poll = useCallback(
+    async (id: string) => {
+      stopPolling();
+      const tick = async () => {
+        try {
+          const res = await fetch(`/api/reports/${id}`, { cache: "no-store" });
+          const data = await res.json();
+          if (!res.ok) {
+            setNotice(data.error ?? "Could not read the job status.");
+            setBusy(false);
+            return;
+          }
+          setJob(data as Job);
+          if (data.status === "queued" || data.status === "running") {
+            timer.current = setTimeout(tick, POLL_MS);
+          } else {
+            setBusy(false);
+            if (data.status === "failed") {
+              setNotice(data.error ?? "The report run failed.");
+            }
+          }
+        } catch {
+          setNotice("Lost contact with the report gateway.");
+          setBusy(false);
+        }
+      };
+      await tick();
+    },
+    [stopPolling],
+  );
+
+  useEffect(() => stopPolling, [stopPolling]);
+
+  /* ---------------- actions ---------------- */
+
+  async function generate() {
+    setNotice(null);
+    setBusy(true);
+    setJob(null);
+
+    const payload: Record<string, unknown> = { workflow: wf };
+    if (wf === "student") {
+      payload.class = cls;
+      payload.mode = mode;
+      if (cfg?.session) payload.session = cfg.session;
+    } else {
+      payload.school = school;
+    }
+
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setNotice(data.error ?? "The report could not be started.");
+        setBusy(false);
+        return;
+      }
+      setJob(data as Job);
+      await poll(data.id);
+    } catch {
+      setNotice("Could not reach the report gateway.");
+      setBusy(false);
+    }
+  }
+
+  /* ---------------- derived ---------------- */
+
+  const inFlight = job?.status === "queued" || job?.status === "running";
+  const ready = job?.status === "done";
+  const schoolLabel =
+    cfg?.schools.find((s) => s.key === school)?.label ?? "—";
 
   return (
     <div className="shell">
@@ -176,7 +230,7 @@ export default function Page() {
           <span className="brand-mark">SD</span>
           <span className="brand-text">
             <strong>School Data Desk</strong>
-            <span>e-ShikshaKosh workflows</span>
+            <span>e-ShikshaKosh reports</span>
           </span>
         </div>
 
@@ -196,8 +250,16 @@ export default function Page() {
         <div className="rail-foot">
           <dl>
             <div className="rail-foot-row">
-              <dt>Environment</dt>
-              <dd>Oracle VPS</dd>
+              <dt>Gateway</dt>
+              <dd>
+                {cfgError ? (
+                  <span className="state-bad">offline</span>
+                ) : cfg ? (
+                  <span className="state-ok">connected</span>
+                ) : (
+                  "checking"
+                )}
+              </dd>
             </div>
             <div className="rail-foot-row">
               <dt>Access</dt>
@@ -224,20 +286,27 @@ export default function Page() {
               <span className="dot dot-ok" />
               Read-only
             </span>
-            <span className="chip chip-warn">
-              <span className="dot dot-warn" />
-              Not connected
-            </span>
+            {cfgError ? (
+              <span className="chip chip-warn">
+                <span className="dot dot-warn" />
+                Gateway offline
+              </span>
+            ) : (
+              <span className="chip chip-ok">
+                <span className="dot dot-ok" />
+                Gateway live
+              </span>
+            )}
           </div>
         </header>
 
         <div className="body">
-          {/* context line — replaces the old hero */}
           <div className="context">
             <h1>Report workbench</h1>
             <p>
-              Pick a workflow, set the school, copy the command. Reports run on
-              the Oracle VPS — this page only builds the command.
+              Pick a workflow, set the school, and generate the workbook. Reports
+              are built on the Oracle VPS and delivered to this page — no command
+              line needed.
             </p>
           </div>
 
@@ -249,34 +318,48 @@ export default function Page() {
                 <strong>Choose one</strong>
               </div>
               <div className="wf-list" role="group" aria-label="Workflow">
-                {WORKFLOWS.map((w) => (
-                  <button
-                    key={w.id}
-                    type="button"
-                    className="wf-row"
-                    aria-pressed={wf === w.id}
-                    onClick={() => setWf(w.id)}
-                  >
-                    <span>
-                      <span className="wf-row-name">{w.name}</span>
-                      <span className="wf-row-meta">{w.group}</span>
-                    </span>
-                    <span className="wf-row-tag">{w.tag}</span>
-                  </button>
-                ))}
+                {cfg &&
+                  WORKFLOW_ORDER.filter((id) => cfg.workflows[id]).map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className="wf-row"
+                      aria-pressed={wf === id}
+                      onClick={() => {
+                        setWf(id);
+                        setJob(null);
+                        setNotice(null);
+                      }}
+                    >
+                      <span>
+                        <span className="wf-row-name">{cfg.workflows[id].name}</span>
+                        <span className="wf-row-meta">
+                          {WORKFLOW_GROUP[id] ?? ""}
+                        </span>
+                      </span>
+                      <span className="wf-row-tag">{cfg.workflows[id].tag}</span>
+                    </button>
+                  ))}
+                {!cfg && !cfgError && (
+                  <p className="hint" style={{ padding: "12px 14px" }}>
+                    Loading workflows…
+                  </p>
+                )}
               </div>
             </section>
 
-            <section className="panel" aria-label="Command">
+            <section className="panel" aria-label="Generate report">
               <div className="action-head">
                 <div>
-                  <span className="eyebrow">{active.group}</span>
-                  <h3>{active.name}</h3>
-                  <p>{active.summary}</p>
+                  <span className="eyebrow">{WORKFLOW_GROUP[wf] ?? "Report"}</span>
+                  <h3>{cfg?.workflows[wf]?.name ?? "Report"}</h3>
+                  <p>{WORKFLOW_SUMMARY[wf]}</p>
                 </div>
               </div>
 
               <div className="action-body">
+                {cfgError && <ErrorNote message={cfgError} />}
+
                 {wf === "student" ? (
                   <div className="field-row">
                     <div className="field">
@@ -286,11 +369,11 @@ export default function Page() {
                         value={cls}
                         onChange={(e) => setCls(e.target.value)}
                       >
-                        <option value="all">All classes</option>
-                        <option value="9">Class 9</option>
-                        <option value="10">Class 10</option>
-                        <option value="11">Class 11</option>
-                        <option value="12">Class 12</option>
+                        {(cfg?.classes ?? [""]).map((c) => (
+                          <option key={c || "all"} value={c}>
+                            {CLASS_LABELS[c] ?? c}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div className="field">
@@ -300,20 +383,16 @@ export default function Page() {
                         role="group"
                         aria-labelledby="mode-label"
                       >
-                        <button
-                          type="button"
-                          aria-pressed={mode === "full"}
-                          onClick={() => setMode("full")}
-                        >
-                          Full
-                        </button>
-                        <button
-                          type="button"
-                          aria-pressed={mode === "masked"}
-                          onClick={() => setMode("masked")}
-                        >
-                          Masked
-                        </button>
+                        {(cfg?.modes ?? ["full"]).map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            aria-pressed={mode === m}
+                            onClick={() => setMode(m)}
+                          >
+                            {m === "full" ? "Full" : m === "masked" ? "Masked" : m}
+                          </button>
+                        ))}
                       </div>
                       <span className="hint">
                         Masked hides Aadhaar, bank and contact values.
@@ -328,52 +407,132 @@ export default function Page() {
                       value={school}
                       onChange={(e) => setSchool(e.target.value)}
                     >
-                      {SCHOOLS.map((s) => (
-                        <option key={s.value} value={s.value}>
+                      {(cfg?.schools ?? []).map((s) => (
+                        <option key={s.key} value={s.key}>
                           {s.label}
                         </option>
                       ))}
                     </select>
                     <span className="hint">
-                      The runner always asks — it never assumes a school.
+                      {schoolLabel} · UDISE{" "}
+                      {cfg?.schools.find((s) => s.key === school)?.udise ?? "—"}
                     </span>
                   </div>
                 )}
 
-                <div>
-                  <div className="cmd-label">
-                    <span>Command</span>
-                    <em>Oracle VPS · bash</em>
+                <div className="job" aria-live="polite">
+                  <div className="job-head">
+                    <span className="eyebrow">Job</span>
+                    <strong>
+                      {job
+                        ? STATUS_LABEL[job.status]
+                        : busy
+                          ? "Starting"
+                          : "Idle"}
+                    </strong>
                   </div>
-                  <div className="cmd">
-                    <code>
-                      <b>$</b> {command}
-                    </code>
-                    <CopyButton text={command} />
-                  </div>
+
+                  {!job && !busy && (
+                    <p className="hint">
+                      Nothing running. Choose the options above and generate.
+                    </p>
+                  )}
+
+                  {busy && !job && <p className="hint">Contacting the gateway…</p>}
+
+                  {inFlight && (
+                    <div className="job-progress">
+                      <span className="spinner" aria-hidden="true" />
+                      <span>
+                        The report is being built on the VPS. This usually takes a
+                        minute or two.
+                      </span>
+                    </div>
+                  )}
+
+                  {job && (
+                    <dl className="job-meta">
+                      <div style={{ display: "contents" }}>
+                        <dt>Workflow</dt>
+                        <dd>{cfg?.workflows[job.workflow]?.name ?? job.workflow}</dd>
+                      </div>
+                      <div style={{ display: "contents" }}>
+                        <dt>File</dt>
+                        <dd>{job.file_name ?? "pending"}</dd>
+                      </div>
+                      {job.file_bytes ? (
+                        <div style={{ display: "contents" }}>
+                          <dt>Size</dt>
+                          <dd>{formatBytes(job.file_bytes)}</dd>
+                        </div>
+                      ) : null}
+                      <div style={{ display: "contents" }}>
+                        <dt>Job</dt>
+                        <dd>
+                          <code>{job.id}</code>
+                        </dd>
+                      </div>
+                    </dl>
+                  )}
+
+                  {ready && job.file_name && (
+                    <a
+                      className="btn-primary"
+                      href={`/api/reports/${job.id}/download`}
+                      download
+                    >
+                      Download {job.file_name}
+                    </a>
+                  )}
+
+                  {job?.status === "failed" && (
+                    <ErrorNote message={job.error ?? "The report run failed."} />
+                  )}
+
+                  {notice && <ErrorNote message={notice} />}
+                </div>
+
+                <div className="job-actions">
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={generate}
+                    disabled={!cfg || busy || inFlight}
+                  >
+                    {inFlight ? "Running…" : job ? "Run again" : "Generate report"}
+                  </button>
+                  {job && (ready || job.status === "failed") && (
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={() => {
+                        setJob(null);
+                        setNotice(null);
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
 
                 <dl className="facts">
-                  {active.facts.map(([k, v]) => (
-                    <div key={k} style={{ display: "contents" }}>
-                      <dt>{k}</dt>
-                      <dd>{v}</dd>
-                    </div>
-                  ))}
+                  <div style={{ display: "contents" }}>
+                    <dt>Scope</dt>
+                    <dd>{WORKFLOW_SCOPE[wf]}</dd>
+                  </div>
+                  <div style={{ display: "contents" }}>
+                    <dt>Session</dt>
+                    <dd>{cfg?.session ?? "—"}</dd>
+                  </div>
+                  <div style={{ display: "contents" }}>
+                    <dt>Credentials</dt>
+                    <dd>Bitwarden, read-only</dd>
+                  </div>
                 </dl>
-
-                <div>
-                  <span className="eyebrow">Before you run</span>
-                  <ol className="steps">
-                    {active.steps.map((s) => (
-                      <li key={s}>{s}</li>
-                    ))}
-                  </ol>
-                </div>
 
                 <div className="caution">
                   <strong>Handle with care</strong>
-                  <p>{active.caution}</p>
+                  <p>{WORKFLOW_CAUTION[wf]}</p>
                 </div>
               </div>
             </section>
@@ -383,31 +542,36 @@ export default function Page() {
           <section className="ref" id="reference" aria-label="Reference">
             <div className="sec-head">
               <h2>All workflows</h2>
-              <span className="sec-note">
-                Entry points and outputs, at a glance
-              </span>
+              <span className="sec-note">What each report contains</span>
             </div>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
                     <th scope="col">Workflow</th>
-                    <th scope="col">Entry point</th>
-                    <th scope="col">Output</th>
                     <th scope="col">Scope</th>
+                    <th scope="col">Group</th>
+                    <th scope="col">Privacy</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {REFERENCE.map((r) => (
-                    <tr key={r.wf}>
-                      <td className="wf">{r.wf}</td>
+                  {Object.entries(cfg?.workflows ?? {}).map(([id, w]) => (
+                    <tr key={id}>
+                      <td className="wf">{w.name}</td>
+                      <td>{w.scope}</td>
+                      <td>{WORKFLOW_GROUP[id] ?? "—"}</td>
                       <td>
-                        <code>{r.entry}</code>
+                        {id === "student"
+                          ? "Full or masked"
+                          : "As published by the portal"}
                       </td>
-                      <td>{r.output}</td>
-                      <td>{r.scope}</td>
                     </tr>
                   ))}
+                  {!cfg && (
+                    <tr>
+                      <td colSpan={4}>Loading…</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -418,30 +582,28 @@ export default function Page() {
             <div>
               <h3>Read-only by design</h3>
               <p>
-                Every workflow only reads from the portal. Nothing is written
-                back to e-ShikshaKosh.
+                Every workflow only reads from the portal. Nothing is written back
+                to e-ShikshaKosh.
               </p>
             </div>
             <div>
               <h3>Credentials stay in Bitwarden</h3>
               <p>
-                The runners read them at runtime. No password is stored in this
-                repository or on this page.
+                The runners read them at runtime on the VPS. No password is stored
+                in this app, in Vercel, or in this repository.
               </p>
             </div>
             <div>
-              <h3>Not connected</h3>
+              <h3>Delivery stays private</h3>
               <p>
-                This page cannot reach the portal. Copy the command and run it
-                on the Oracle VPS.
+                The app calls the private report gateway over an authenticated
+                tunnel. Download links are single-use and expire quickly.
               </p>
             </div>
           </section>
 
           <footer className="foot">
-            <span>
-              School Data Desk · e-ShikshaKosh automation repository
-            </span>
+            <span>School Data Desk · e-ShikshaKosh automation repository</span>
             <span>Read-only · Bitwarden · Oracle VPS</span>
           </footer>
         </div>
