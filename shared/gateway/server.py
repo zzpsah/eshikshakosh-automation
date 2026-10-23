@@ -268,6 +268,12 @@ def _sweep_output_root(horizon: float, cfg: dict[str, Any]) -> None:
 
 
 def _retention_loop() -> None:
+    # Sweep immediately at startup: workbooks orphaned by a previous run are
+    # reclaimed on boot rather than waiting a full interval.
+    try:
+        _prune()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("retention sweep failed: %s", type(exc).__name__)
     while True:
         time.sleep(300)
         try:
