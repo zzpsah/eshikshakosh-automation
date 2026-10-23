@@ -55,6 +55,11 @@ SESSION_RE = re.compile(r"^\d{4}-\d{2}$")
 # of the job and are stripped before anything is persisted or logged.
 CREDENTIAL_FIELDS = ("username", "password")
 
+# Runner stdout/stderr tail surfaced to the operator. Bounded so a runaway
+# runner cannot grow a job record without limit.
+LOG_TAIL_CHARS = 600
+LOG_FIELD = "log"
+
 # ------------------------------------------------------------- job store --
 
 _lock = threading.RLock()
@@ -165,6 +170,32 @@ def _snapshot_exports() -> set[str]:
     if not EXPORTS.exists():
         return set()
     return {str(p) for p in EXPORTS.rglob("*") if p.is_file()}
+
+
+def _redact(text: str, job: dict[str, Any]) -> str:
+    """Remove credential values from arbitrary runner output before it is stored.
+
+    Defensive: a runner should never echo credentials, but a traceback or an
+    error message built from environment could. Values are replaced, never
+    truncated, so redaction is idempotent and total.
+    """
+    for field in CREDENTIAL_FIELDS:
+        value = job.get(field)
+        if isinstance(value, str) and value:
+            text = text.replace(value, "<redacted>")
+    return text
+
+
+def _tail(text: str, job: dict[str, Any]) -> str:
+    """Return a bounded, redacted tail of runner output for the operator."""
+    if not text:
+        return ""
+    cleaned = _redact(text, job).strip()
+    if not cleaned:
+        return ""
+    if len(cleaned) > LOG_TAIL_CHARS:
+        cleaned = "..." + cleaned[-LOG_TAIL_CHARS:]
+    return cleaned
 
 
 def validate_workbook(path: str | Path) -> tuple[bool, str]:
@@ -322,6 +353,15 @@ def _execute(job: dict[str, Any]) -> None:
         after = _snapshot_exports()
         new_files = sorted(after - before)
 
+        # Surface the runner's own output so an operator can tell a wrong
+        # password from a missing secret or a network failure. Redacted and
+        # bounded before it is ever stored or returned.
+        combined = "\n".join(
+            part for part in (proc.stdout or "", proc.stderr or "") if part
+        )
+        log_tail = _tail(combined, job)
+        job[LOG_FIELD] = log_tail
+
         # Each current runner emits an explicit machine-readable output marker.
         # Only use the filesystem delta as a compatibility fallback when exactly
         # one workbook appeared; never guess between multiple candidate reports.
@@ -339,7 +379,15 @@ def _execute(job: dict[str, Any]) -> None:
                 output = candidates[0]
 
         if proc.returncode != 0:
-            error = f"runner exited {proc.returncode}"
+            # Include the runner's own last line so "runner exited 1" is not the
+            # only signal an operator gets. Kept short and already redacted.
+            reason = (log_tail or "").strip().splitlines()[-1].strip() if log_tail else ""
+            if len(reason) > 160:
+                reason = "..." + reason[-157:]
+            error = (
+                f"runner exited {proc.returncode}: {reason}"
+                if reason else f"runner exited {proc.returncode}"
+            )
         elif output:
             valid, validation_error = validate_workbook(output)
             if valid:

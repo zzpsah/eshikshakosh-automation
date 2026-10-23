@@ -198,6 +198,8 @@ def _view(job: dict[str, Any]) -> dict[str, Any]:
         "finished_at": job.get("finished_at"),
         "file_name": Path(job["output"]).name if job.get("output") else None,
         "file_bytes": None,
+        # Bounded, redacted runner output so a failure is diagnosable from the UI.
+        "log": job.get("log"),
     }
     if job.get("output") and Path(job["output"]).is_file():
         out["file_bytes"] = Path(job["output"]).stat().st_size
@@ -398,6 +400,7 @@ def _status(job_id: str) -> dict[str, Any]:
             "finished_at": fresh.get("finished_at", 0),
             "output": fresh.get("output"),
             "error": fresh.get("error"),
+            "log": fresh.get("log"),
         }
         with _jobs_lock:
             # Keep an entry that may have been added while the service request ran.
@@ -409,6 +412,7 @@ def _status(job_id: str) -> dict[str, Any]:
             current["status"] = fresh.get("status", current["status"])
             current["output"] = fresh.get("output")
             current["error"] = fresh.get("error")
+            current["log"] = fresh.get("log")
             current["finished_at"] = fresh.get("finished_at") or current.get("finished_at", 0)
             job = current
 

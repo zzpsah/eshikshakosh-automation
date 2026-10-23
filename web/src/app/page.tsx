@@ -26,6 +26,7 @@ type Job = {
   file_name: string | null;
   file_bytes: number | null;
   error?: string;
+  log?: string;
 };
 
 const WORKFLOW_ORDER = ["student", "roster", "detail"] as const;
@@ -88,6 +89,15 @@ function ErrorNote({ message }: { message: string }) {
     <p className="job-error" role="alert">
       {message}
     </p>
+  );
+}
+
+function RunnerLog({ log }: { log: string }) {
+  return (
+    <details className="job-log">
+      <summary>Runner output</summary>
+      <pre>{log}</pre>
+    </details>
   );
 }
 
@@ -617,6 +627,10 @@ export default function Page() {
                   {job?.status === "failed" && (
                     <ErrorNote message={job.error ?? "The report run failed."} />
                   )}
+
+                  {job?.status === "failed" && job.log ? (
+                    <RunnerLog log={job.log} />
+                  ) : null}
 
                   {notice && <ErrorNote message={notice} />}
                 </div>
