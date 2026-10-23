@@ -53,7 +53,8 @@ SESSION_RE = re.compile(r"^\d{4}-\d{2}$")
 
 _lock = threading.RLock()
 _jobs: dict[str, dict[str, Any]] = {}
-_job_queue: queue.Queue[str] = queue.Queue()
+MAX_QUEUED_JOBS = max(1, int(os.environ.get("JOB_SERVER_MAX_QUEUED", "50")))
+_job_queue: queue.Queue[str] = queue.Queue(maxsize=MAX_QUEUED_JOBS)
 
 
 def load_state() -> None:
@@ -64,6 +65,7 @@ def load_state() -> None:
         data = json.loads(STATE_FILE.read_text())
         if not isinstance(data, dict):
             return
+        reconciled = False
         with _lock:
             _jobs.clear()
             for job_id, job in data.items():
@@ -76,7 +78,10 @@ def load_state() -> None:
                         error="interrupted_by_restart",
                         finished_at=time.time(),
                     )
+                    reconciled = True
                 _jobs[str(job_id)] = job
+        if reconciled:
+            save_state()
     except (OSError, json.JSONDecodeError):
         # Keep the service available if state is temporarily unreadable; do not
         # overwrite the file here, because it may still be recoverable.
@@ -91,6 +96,42 @@ def save_state() -> None:
         payload = json.dumps(_jobs, indent=2)
         tmp.write_text(payload)
         tmp.replace(STATE_FILE)
+
+
+def enqueue_job(job: dict[str, Any]) -> bool:
+    """Persist and enqueue a job, returning False when the pending queue is full."""
+    job_id = str(job["id"])
+    with _lock:
+        if _job_queue.full():
+            return False
+        _jobs[job_id] = job
+        try:
+            save_state()
+        except OSError:
+            _jobs.pop(job_id, None)
+            raise
+        # The worker takes the same store lock before looking up this ID, so it
+        # cannot race ahead of the persisted record.
+        _job_queue.put_nowait(job_id)
+    return True
+
+
+def recover_queued_jobs() -> None:
+    """Restore queued work up to capacity; fail excess persisted jobs explicitly."""
+    changed = False
+    with _lock:
+        for job_id, job in _jobs.items():
+            if job.get("status") != "queued":
+                continue
+            try:
+                _job_queue.put_nowait(job_id)
+            except queue.Full:
+                job["status"] = "failed"
+                job["error"] = "queue_capacity_exceeded_after_restart"
+                job["finished_at"] = time.time()
+                changed = True
+        if changed:
+            save_state()
 
 
 def audit(action: str, **fields: Any) -> None:
@@ -168,6 +209,9 @@ def _worker_loop() -> None:
 
 
 def _execute(job: dict[str, Any]) -> None:
+    status = "failed"
+    error: str | None = None
+    output_path: str | None = None
     try:
         cmd, env = build_command(job)
         before = _snapshot_exports()
@@ -199,25 +243,26 @@ def _execute(job: dict[str, Any]) -> None:
                 output = candidates[0]
 
         if proc.returncode != 0:
-            job["status"] = "failed"
-            job["error"] = f"runner exited {proc.returncode}"
+            error = f"runner exited {proc.returncode}"
         elif output and Path(output).is_file():
-            job["status"] = "done"
-            job["output"] = str(Path(output).resolve())
+            status = "done"
+            output_path = str(Path(output).resolve())
         elif not output and len([p for p in new_files if Path(p).suffix.lower() == ".xlsx"]) > 1:
-            job["status"] = "failed"
-            job["error"] = "ambiguous output files"
+            error = "ambiguous output files"
         else:
-            job["status"] = "failed"
-            job["error"] = "no output file produced"
+            error = "no output file produced"
     except subprocess.TimeoutExpired:
-        job["status"] = "failed"
-        job["error"] = "timeout"
+        error = "timeout"
     except Exception as exc:  # noqa: BLE001 - report any failure to the caller
-        job["status"] = "failed"
-        job["error"] = type(exc).__name__
+        error = type(exc).__name__
 
+    # Publish all terminal fields together so readers and persistence always see
+    # a coherent state transition rather than a partially updated job record.
     with _lock:
+        job["status"] = status
+        job["error"] = error
+        if output_path:
+            job["output"] = output_path
         job["finished_at"] = time.time()
         save_state()
     audit("job_finished", job=job["id"], workflow=job["workflow"], status=job["status"])
@@ -353,12 +398,15 @@ class Handler(BaseHTTPRequestHandler):
             output=None,
             error=None,
         )
-        with _lock:
-            _jobs[job_id] = job
-            save_state()
+        try:
+            accepted = enqueue_job(job)
+        except OSError:
+            self._json(503, {"error": "job state unavailable"})
+            return
+        if not accepted:
+            self._json(503, {"error": "job queue full; retry later"})
+            return
         audit("job_created", job=job_id, workflow=workflow)
-
-        _job_queue.put(job_id)
         self._json(201, {"id": job_id, "status": "queued"})
 
     # -- job views -------------------------------------------------------
@@ -407,9 +455,7 @@ def main() -> None:
     load_state()
     # Requeue jobs accepted before a restart; jobs that were actively running
     # are marked failed by load_state and are not replayed automatically.
-    for job_id, job in list(_jobs.items()):
-        if job.get("status") == "queued":
-            _job_queue.put(job_id)
+    recover_queued_jobs()
     threading.Thread(target=_worker_loop, name="jobserver-worker", daemon=True).start()
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     audit("server_start", host=HOST, port=PORT)
