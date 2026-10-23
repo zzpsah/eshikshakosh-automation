@@ -104,6 +104,14 @@ export default function Page() {
   const [cls, setCls] = useState<string>("");
   const [mode, setMode] = useState<string>("full");
 
+  // Credentials. When both fields are filled the login is taken from the browser
+  // for this run only; when left empty the runner uses the VPS vault.
+  const [useManualCreds, setUseManualCreds] = useState(false);
+  const [loginType, setLoginType] = useState<"school" | "teacher">("school");
+  const [loginId, setLoginId] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
   const [job, setJob] = useState<Job | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -194,6 +202,10 @@ export default function Page() {
     } else {
       payload.school = school;
     }
+    if (useManualCreds && loginId.trim() && loginPassword) {
+      payload.username = loginId.trim();
+      payload.password = loginPassword;
+    }
 
     try {
       const res = await fetch("/api/reports", {
@@ -221,6 +233,10 @@ export default function Page() {
   const ready = job?.status === "done";
   const schoolLabel =
     cfg?.schools.find((s) => s.key === school)?.label ?? "—";
+  const credSource =
+    useManualCreds && loginId.trim() && loginPassword
+      ? "Entered for this run"
+      : "VPS vault";
 
   return (
     <div className="shell">
@@ -267,7 +283,7 @@ export default function Page() {
             </div>
             <div className="rail-foot-row">
               <dt>Credentials</dt>
-              <dd>Bitwarden</dd>
+              <dd>{credSource}</dd>
             </div>
           </dl>
         </div>
@@ -420,6 +436,119 @@ export default function Page() {
                   </div>
                 )}
 
+                <section className="panel cred-panel" aria-label="Portal login">
+                  <div className="cred-head">
+                    <div>
+                      <span className="eyebrow">Portal login</span>
+                      <h3>Credentials</h3>
+                      <p>
+                        By default the runner signs in with the credentials stored
+                        in the VPS vault. Enter them here instead to run once with
+                        a different login.
+                      </p>
+                    </div>
+                    <div
+                      className="segmented"
+                      role="group"
+                      aria-label="Credential source"
+                    >
+                      <button
+                        type="button"
+                        aria-pressed={!useManualCreds}
+                        onClick={() => setUseManualCreds(false)}
+                      >
+                        VPS vault
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={useManualCreds}
+                        onClick={() => setUseManualCreds(true)}
+                      >
+                        Enter once
+                      </button>
+                    </div>
+                  </div>
+
+                  {useManualCreds && (
+                    <div className="cred-body">
+                      <div className="field">
+                        <label id="login-type-label">Login type</label>
+                        <div
+                          className="segmented"
+                          role="group"
+                          aria-labelledby="login-type-label"
+                        >
+                          <button
+                            type="button"
+                            aria-pressed={loginType === "school"}
+                            onClick={() => setLoginType("school")}
+                          >
+                            School · UDISE
+                          </button>
+                          <button
+                            type="button"
+                            aria-pressed={loginType === "teacher"}
+                            onClick={() => setLoginType("teacher")}
+                          >
+                            Teacher ID
+                          </button>
+                        </div>
+                        <span className="hint">
+                          {loginType === "school"
+                            ? "The 11-digit UDISE code of the school."
+                            : "The 12-digit Teacher ID issued by the portal."}
+                        </span>
+                      </div>
+
+                      <div className="field">
+                        <label htmlFor="login-id">
+                          {loginType === "school" ? "UDISE code" : "Teacher ID"}
+                        </label>
+                        <input
+                          id="login-id"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          spellCheck={false}
+                          value={loginId}
+                          onChange={(e) => setLoginId(e.target.value)}
+                          placeholder={
+                            loginType === "school"
+                              ? "11-digit UDISE code"
+                              : "12-digit Teacher ID"
+                          }
+                        />
+                      </div>
+
+                      <div className="field">
+                        <label htmlFor="login-password">Password</label>
+                        <div className="pw-wrap">
+                          <input
+                            id="login-password"
+                            type={showPassword ? "text" : "password"}
+                            autoComplete="off"
+                            value={loginPassword}
+                            onChange={(e) => setLoginPassword(e.target.value)}
+                            placeholder="Portal password"
+                          />
+                          <button
+                            type="button"
+                            className="pw-toggle"
+                            aria-label={
+                              showPassword ? "Hide password" : "Show password"
+                            }
+                            onClick={() => setShowPassword((v) => !v)}
+                          >
+                            {showPassword ? "Hide" : "Show"}
+                          </button>
+                        </div>
+                        <span className="hint">
+                          Used for this run only. Never stored or logged.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </section>
+
                 <div className="job" aria-live="polite">
                   <div className="job-head">
                     <span className="eyebrow">Job</span>
@@ -526,7 +655,7 @@ export default function Page() {
                   </div>
                   <div style={{ display: "contents" }}>
                     <dt>Credentials</dt>
-                    <dd>Bitwarden, read-only</dd>
+                    <dd>{credSource}</dd>
                   </div>
                 </dl>
 
@@ -587,10 +716,11 @@ export default function Page() {
               </p>
             </div>
             <div>
-              <h3>Credentials stay in Bitwarden</h3>
+              <h3>Credentials are never stored</h3>
               <p>
-                The runners read them at runtime on the VPS. No password is stored
-                in this app, in Vercel, or in this repository.
+                By default the runners read them from the VPS vault at runtime. If
+                you enter them here they are used for that run only and are never
+                stored in this app, in Vercel, or in this repository.
               </p>
             </div>
             <div>
@@ -604,7 +734,7 @@ export default function Page() {
 
           <footer className="foot">
             <span>School Data Desk · e-ShikshaKosh automation repository</span>
-            <span>Read-only · Bitwarden · Oracle VPS</span>
+            <span>Read-only · Oracle VPS</span>
           </footer>
         </div>
       </div>

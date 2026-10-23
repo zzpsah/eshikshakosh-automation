@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import importlib.util
 import os
 import queue
 import re
@@ -50,6 +51,9 @@ SCHOOLS = {"Sahaspur", "Tetahali"}
 CLASSES = {"", "9", "10", "11", "12"}
 MODES = {"full", "masked"}
 SESSION_RE = re.compile(r"^\d{4}-\d{2}$")
+# Credentials authorize one run only. They are held in memory for the lifetime
+# of the job and are stripped before anything is persisted or logged.
+CREDENTIAL_FIELDS = ("username", "password")
 
 # ------------------------------------------------------------- job store --
 
@@ -91,11 +95,19 @@ def load_state() -> None:
 
 
 def save_state() -> None:
-    """Atomically persist one consistent snapshot of the job store."""
+    """Atomically persist one consistent snapshot of the job store.
+
+    Credentials are excluded: they authorize a single run and must never be
+    written to disk.
+    """
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     tmp = STATE_FILE.with_suffix(".tmp")
     with _lock:
-        payload = json.dumps(_jobs, indent=2)
+        safe = {
+            jid: {k: v for k, v in job.items() if k not in CREDENTIAL_FIELDS}
+            for jid, job in _jobs.items()
+        }
+        payload = json.dumps(safe, indent=2)
         tmp.write_text(payload)
         tmp.replace(STATE_FILE)
 
@@ -192,11 +204,43 @@ def validate_workbook(path: str | Path) -> tuple[bool, str]:
     return True, "ok"
 
 
+def school_udise(school_key: str) -> str | None:
+    """Resolve a school key to its UDISE code via the shared registry."""
+    registry = REPO / "shared" / "esk_schools.py"
+    if not registry.is_file():
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("esk_schools", registry)
+        assert spec and spec.loader
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    except Exception:  # noqa: BLE001
+        return None
+    entry = mod.find(school_key)
+    return entry["udise"] if entry else None
+
+
 def build_command(job: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
     wf = job["workflow"]
     env = dict(os.environ)
+    # Inherited credentials would shadow a one-time login supplied with the job.
+    env.pop("ESHIKSHAKOSH_USERNAME", None)
+    env.pop("ESHIKSHAKOSH_PASSWORD", None)
+    user = job.get("username")
+    pwd = job.get("password")
+    has_creds = bool(user and pwd)
 
     if wf == "student":
+        if has_creds:
+            # Direct one-time credentials: run the report without the Bitwarden
+            # wrapper, which would otherwise overwrite these with stored secrets.
+            env["ESHIKSHAKOSH_USERNAME"] = str(user)
+            env["ESHIKSHAKOSH_PASSWORD"] = str(pwd)
+            env["ESHIKSHAKOSH_EXPORT_MODE"] = job.get("mode") or "full"
+            env["ESHIKSHAKOSH_CLASS"] = job.get("class") or ""
+            if job.get("session"):
+                env["ESHIKSHAKOSH_YEAR"] = job["session"]
+            return ["bash", str(REPO / "modules" / "student" / "run_report.sh")], env
         cmd = [str(Path.home() / ".local/bin" / "eshikshakosh-report")]
         if job.get("class"):
             cmd += ["--class", job["class"]]
@@ -207,7 +251,18 @@ def build_command(job: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
         return cmd, env
 
     script = "run_teacher_report.sh" if wf == "roster" else "run_teacher_detail_report.sh"
-    cmd = ["bash", str(REPO / "modules" / "teacher" / script), "--school", job["school"]]
+    cmd = ["bash", str(REPO / "modules" / "teacher" / script)]
+    if has_creds:
+        # The teacher runner takes credentials from the environment, never argv,
+        # so the password cannot appear in the process list.
+        udise = school_udise(job["school"])
+        if not udise:
+            raise RuntimeError(f"no UDISE registered for school {job['school']!r}")
+        env["ESHIKSHAKOSH_USERNAME"] = str(user)
+        env["ESHIKSHAKOSH_PASSWORD"] = str(pwd)
+        cmd += ["--udise", udise]
+    else:
+        cmd += ["--school", job["school"]]
     return cmd, env
 
 
@@ -433,8 +488,27 @@ class Handler(BaseHTTPRequestHandler):
                 return
             job["school"] = school
 
+        # One-time credentials supplied by the operator. They are forwarded to
+        # the runner as environment variables and never persisted or logged.
+        username = data.get("username")
+        password = data.get("password")
+        if username is not None or password is not None:
+            if not (
+                isinstance(username, str)
+                and isinstance(password, str)
+                and username.strip()
+                and password
+            ):
+                self._json(400, {"error": "username and password must be provided together"})
+                return
+            job["username"] = username.strip()
+            job["password"] = password
+
+        # Hash the non-secret fields only: the job ID must not be derived from a
+        # credential, and two runs with identical inputs should collide-safe.
+        identity = {k: v for k, v in job.items() if k not in CREDENTIAL_FIELDS}
         job_id = hashlib.sha256(
-            f"{time.time()}{workflow}{json.dumps(job, sort_keys=True)}".encode()
+            f"{time.time()}{workflow}{json.dumps(identity, sort_keys=True)}".encode()
         ).hexdigest()[:16]
         job.update(
             id=job_id,

@@ -75,6 +75,9 @@ SCHOOLS = [
 SCHOOL_KEYS = [s["key"] for s in SCHOOLS]
 CLASSES = ["", "9", "10", "11", "12"]
 MODES = ["full", "masked"]
+# Credentials authorize a single run. They are forwarded to the report service
+# but never cached, logged, or returned by the gateway.
+CREDENTIAL_FIELDS = ("username", "password")
 WORKFLOWS = {
     "student": {"name": "Student details", "tag": "OTR", "scope": "classes 9-12"},
     "roster": {"name": "Teacher roster", "tag": "LIST", "scope": "all teachers"},
@@ -328,6 +331,21 @@ def _create(body: dict[str, Any]) -> dict[str, Any]:
             raise GatewayError(400, "Unknown school.")
         payload["school"] = school
 
+    # One-time credentials supplied by the operator. They are forwarded to the
+    # report service for this run only and never cached or logged here.
+    username = body.get("username")
+    password = body.get("password")
+    if username is not None or password is not None:
+        if not (
+            isinstance(username, str)
+            and isinstance(password, str)
+            and username.strip()
+            and password
+        ):
+            raise GatewayError(400, "Credentials must be provided together.")
+        payload["username"] = username.strip()
+        payload["password"] = password
+
     result = _job_request("POST", "/jobs", payload)
     job_id = result.get("id")
     if not job_id:
@@ -338,13 +356,15 @@ def _create(body: dict[str, Any]) -> dict[str, Any]:
         if len(_jobs) >= int(cfg.get("max_jobs", 200)):
             oldest = min(_jobs.items(), key=lambda kv: kv[1].get("created_at", 0))[0]
             _jobs.pop(oldest, None)
+        # Credentials are never cached: the view exposes the job record.
+        cached = {k: v for k, v in payload.items() if k not in CREDENTIAL_FIELDS}
         _jobs[job_id] = {
             "id": job_id,
             "status": "queued",
             "created_at": time.time(),
             "finished_at": 0,
             "output": None,
-            **payload,
+            **cached,
         }
     log.info("job %s created (%s)", job_id, workflow)
     return _view(_jobs[job_id])
