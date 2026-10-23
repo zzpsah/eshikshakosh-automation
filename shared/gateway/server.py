@@ -253,6 +253,10 @@ def _sweep_output_root(horizon: float, cfg: dict[str, Any]) -> None:
     for p in root.rglob("*"):
         if not p.is_file() or p.suffix.lower() not in REPORT_SUFFIXES:
             continue
+        # `archive/` holds historical workbooks that are kept permanently
+        # (see modules/student/README.md) — never sweep them.
+        if any(part.lower() == "archive" for part in p.relative_to(root).parts[:-1]):
+            continue
         try:
             if p.stat().st_mtime < horizon:
                 p.unlink()
