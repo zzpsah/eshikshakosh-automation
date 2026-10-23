@@ -331,16 +331,47 @@ def _create(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _status(job_id: str) -> dict[str, Any]:
+    # Job IDs are generated as 16 lowercase hex characters by the job service.
+    # Validate before forwarding an unknown ID to the internal service.
+    if len(job_id) != 16 or any(c not in "0123456789abcdef" for c in job_id):
+        raise GatewayError(404, "Not found.")
+
     with _jobs_lock:
         job = _jobs.get(job_id)
-        if job and job["status"] in ("queued", "running"):
-            fresh = _job_request("GET", f"/jobs/{job_id}")
-            job["status"] = fresh.get("status", job["status"])
-            job["output"] = fresh.get("output")
-            job["error"] = fresh.get("error")
-            job["finished_at"] = fresh.get("finished_at") or job.get("finished_at", 0)
-    if not job:
-        raise GatewayError(404, "Not found.")
+
+    # The gateway cache is intentionally in-memory. After a gateway restart,
+    # recover the record from the persistent job service instead of returning
+    # 404 for a valid previously-created report.
+    if job is None:
+        fresh = _job_request("GET", f"/jobs/{job_id}")
+        if fresh.get("id") != job_id:
+            raise GatewayError(404, "Not found.")
+        job = {
+            "id": job_id,
+            "status": fresh.get("status", "failed"),
+            "workflow": fresh.get("workflow"),
+            "school": fresh.get("school"),
+            "class": fresh.get("class"),
+            "mode": fresh.get("mode"),
+            "session": fresh.get("session"),
+            "created_at": fresh.get("created_at", time.time()),
+            "finished_at": fresh.get("finished_at", 0),
+            "output": fresh.get("output"),
+            "error": fresh.get("error"),
+        }
+        with _jobs_lock:
+            # Keep an entry that may have been added while the service request ran.
+            job = _jobs.setdefault(job_id, job)
+    elif job["status"] in ("queued", "running"):
+        fresh = _job_request("GET", f"/jobs/{job_id}")
+        with _jobs_lock:
+            current = _jobs.get(job_id, job)
+            current["status"] = fresh.get("status", current["status"])
+            current["output"] = fresh.get("output")
+            current["error"] = fresh.get("error")
+            current["finished_at"] = fresh.get("finished_at") or current.get("finished_at", 0)
+            job = current
+
     return _view(job)
 
 
