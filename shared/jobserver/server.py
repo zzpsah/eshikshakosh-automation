@@ -262,6 +262,10 @@ def build_command(job: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
     has_creds = bool(user and pwd)
 
     if wf == "student":
+        school = str(job.get("school") or "").strip()
+        if school not in {"Sahaspur", "Tetahali"}:
+            raise RuntimeError("a registered school must be selected for student reports")
+        env["ESHIKSHAKOSH_SCHOOL"] = school
         if has_creds:
             # Direct one-time credentials: run the report without the Bitwarden
             # wrapper, which would otherwise overwrite these with stored secrets.

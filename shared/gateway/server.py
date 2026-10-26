@@ -41,13 +41,25 @@ import json
 import logging
 import os
 import secrets
+import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+
+# The analysis engine lives beside this gateway under shared/. Running this file
+# as a script puts shared/gateway on sys.path, so the repo root has to be added
+# explicitly before the engine can be imported.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from shared.analysis import engine as analysis_engine  # noqa: E402
+from shared.analysis import identity as analysis_identity  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s gateway %(levelname)s %(message)s")
 log = logging.getLogger("gateway")
@@ -254,6 +266,101 @@ def _prune() -> None:
 REPORT_SUFFIXES = {".xlsx", ".csv", ".pdf", ".zip"}
 
 
+# ---------------------------------------------------------------- explorer --
+#
+# Read-only access to finished workbooks: library, field profile, data quality,
+# paginated rows, cross-report diff, and the UDISE identity lookup.
+#
+# Same rule as downloads: everything here is behind the app token, and nothing
+# that names a server path or directory leaves this process.
+
+
+def _analysis_root(cfg: dict[str, Any]) -> Path:
+    return Path(cfg.get("output_root") or (Path.home() / "exports")).expanduser().resolve()
+
+
+def _library(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Report list, with server paths stripped before it reaches a browser."""
+    payload = analysis_engine.library(_analysis_root(cfg))
+    payload.pop("root", None)          # absolute server path
+    for entry in payload.get("reports", []):
+        entry.pop("path", None)        # relative path still names the tree
+    return payload
+
+
+def _profile(cfg: dict[str, Any], report_id: str) -> dict[str, Any]:
+    payload = analysis_engine.profile(_analysis_root(cfg), _safe_id(report_id))
+    payload.pop("path", None)
+    return payload
+
+
+def _quality(cfg: dict[str, Any], report_id: str) -> dict[str, Any]:
+    return analysis_engine.quality(_analysis_root(cfg), _safe_id(report_id))
+
+
+def _rows(cfg: dict[str, Any], report_id: str, query: dict[str, str]) -> dict[str, Any]:
+    """Paginated rows. `filters` arrives as a JSON object in a query param."""
+    filters: dict[str, str] = {}
+    raw_filters = query.get("filters")
+    if raw_filters:
+        try:
+            decoded = json.loads(raw_filters)
+            if isinstance(decoded, dict):
+                filters = {str(k): str(v) for k, v in decoded.items()}
+        except ValueError:
+            raise GatewayError(422, "filters must be a JSON object")
+
+    columns = [c for c in (query.get("search_columns") or "").split(",") if c]
+    return analysis_engine.query(
+        _analysis_root(cfg),
+        _safe_id(report_id),
+        sheet=query.get("sheet") or None,
+        filters=filters or None,
+        search=query.get("search") or None,
+        search_columns=columns or None,
+        sort=query.get("sort") or None,
+        order=query.get("order") or "asc",
+        page=_int_param(query.get("page"), 1),
+        page_size=_int_param(query.get("page_size"), analysis_engine.DEFAULT_PAGE_SIZE),
+    )
+
+
+def _resolve(cfg: dict[str, Any], report_id: str, query: dict[str, str]) -> dict[str, Any]:
+    return analysis_identity.resolve(
+        _analysis_root(cfg),
+        _safe_id(report_id),
+        page=_int_param(query.get("page"), 1),
+        limit=_int_param(query.get("page_size"), analysis_engine.DEFAULT_PAGE_SIZE),
+    )
+
+
+def _identity_status(cfg: dict[str, Any]) -> dict[str, Any]:
+    payload = analysis_identity.status(_analysis_root(cfg))
+    payload.pop("path", None)          # absolute location of the UDISE export
+    return payload
+
+
+def _compare(cfg: dict[str, Any], left: str, right: str) -> dict[str, Any]:
+    return analysis_engine.compare(
+        _analysis_root(cfg), _safe_id(left), _safe_id(right)
+    )
+
+
+def _safe_id(report_id: str) -> str:
+    """Report ids are hex digests. Anything else is a traversal attempt."""
+    cleaned = report_id.strip()
+    if not cleaned or len(cleaned) > 64 or not all(c in "0123456789abcdef" for c in cleaned.lower()):
+        raise GatewayError(404, "Report not found.")
+    return cleaned.lower()
+
+
+def _int_param(value: str | None, fallback: int) -> int:
+    try:
+        return int(value) if value not in (None, "") else fallback
+    except ValueError:
+        raise GatewayError(422, "Invalid numeric parameter.")
+
+
 def _sweep_output_root(horizon: float, cfg: dict[str, Any]) -> None:
     """Unlink report files older than `horizon` anywhere under the output root.
 
@@ -317,8 +424,12 @@ def _create(body: dict[str, Any]) -> dict[str, Any]:
 
     payload: dict[str, Any] = {"workflow": workflow}
     if workflow == "student":
+        school = str(body.get("school") or "")
+        if school not in SCHOOL_KEYS:
+            raise GatewayError(400, "Select a registered school.")
+        payload["school"] = school
         cls = str(body.get("class") or "")
-        mode = str(body.get("mode") or "full")
+        mode = str(body.get("mode") or "masked")
         session = str(body.get("session") or "")
         if cls not in CLASSES:
             raise GatewayError(400, "Invalid class.")
@@ -479,6 +590,22 @@ class Handler(BaseHTTPRequestHandler):
                     },
                 )
                 return
+            if path == "/v1/analysis/reports":
+                self._json(200, _library(load_config()))
+                return
+            if path == "/v1/analysis/identity":
+                self._json(200, _identity_status(load_config()))
+                return
+            if path.startswith("/v1/analysis/compare/"):
+                ids = path[len("/v1/analysis/compare/") :].split("/")
+                if len(ids) != 2 or not all(ids):
+                    self._json(422, {"error": "Two report ids are required."})
+                    return
+                self._json(200, _compare(load_config(), ids[0], ids[1]))
+                return
+            if path.startswith("/v1/analysis/reports/"):
+                self._analysis_report(path[len("/v1/analysis/reports/") :])
+                return
             if path.startswith("/v1/reports/"):
                 self._json(200, _status(path[len("/v1/reports/") :]))
                 return
@@ -488,6 +615,35 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": "Not found."})
         except GatewayError as exc:
             self._json(exc.status, {"error": exc.detail})
+        except analysis_engine.AnalysisError as exc:
+            # An unreadable or unknown workbook is a client-facing 4xx, and the
+            # detail never contains a path.
+            self._json(422, {"error": exc.args[0] if exc.args else "Analysis failed."})
+
+    def _analysis_report(self, remainder: str) -> None:
+        """Dispatch /v1/analysis/reports/<id>[/<verb>]."""
+        parts = [p for p in remainder.split("/") if p]
+        if not parts:
+            self._json(404, {"error": "Report not found."})
+            return
+        report_id, verb = parts[0], parts[1] if len(parts) > 1 else "profile"
+        if len(parts) > 2:
+            self._json(404, {"error": "Not found."})
+            return
+
+        query = dict(urllib.parse.parse_qsl(self.path.split("?")[1] if "?" in self.path else ""))
+        cfg = load_config()
+
+        if verb == "profile":
+            self._json(200, _profile(cfg, report_id))
+        elif verb == "quality":
+            self._json(200, _quality(cfg, report_id))
+        elif verb == "rows":
+            self._json(200, _rows(cfg, report_id, query))
+        elif verb == "resolve":
+            self._json(200, _resolve(cfg, report_id, query))
+        else:
+            self._json(404, {"error": "Not found."})
 
     def do_POST(self) -> None:  # noqa: N802
         path = self.path.split("?")[0]
@@ -541,8 +697,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="School Data Desk private gateway")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8788)
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="alternate config.json path (used by the test suite)",
+    )
     parser.add_argument("--init", action="store_true", help="write a starter config.json")
     args = parser.parse_args()
+
+    if args.config:
+        global CONFIG_FILE  # noqa: PLW0603
+        CONFIG_FILE = Path(args.config).resolve()
 
     public = args.host not in LOCAL_HOSTS
 
