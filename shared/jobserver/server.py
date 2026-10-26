@@ -518,8 +518,12 @@ class Handler(BaseHTTPRequestHandler):
         job: dict[str, Any] = {"workflow": workflow}
 
         if workflow == "student":
+            school = str(data.get("school") or "").strip()
+            if school not in SCHOOLS:
+                self._json(400, {"error": "a registered school must be selected for student reports"})
+                return
             cls = str(data.get("class") or "")
-            mode = str(data.get("mode") or "full")
+            mode = str(data.get("mode") or "masked")
             session = str(data.get("session") or "")
             if cls not in CLASSES:
                 self._json(400, {"error": "invalid class"})
@@ -530,6 +534,7 @@ class Handler(BaseHTTPRequestHandler):
             if session and not SESSION_RE.match(session):
                 self._json(400, {"error": "invalid session"})
                 return
+            job["school"] = school
             job["class"] = cls
             job["mode"] = mode
             job["session"] = session
