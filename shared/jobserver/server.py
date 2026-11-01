@@ -30,6 +30,7 @@ import threading
 import time
 import zipfile
 import xml.etree.ElementTree as ET
+from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,8 @@ STATE_FILE = Path.home() / ".local" / "share" / "jobserver" / "jobs.json"
 AUDIT_LOG = Path.home() / ".local" / "share" / "jobserver" / "audit.log"
 
 TOKEN = os.environ.get("JOB_SERVER_TOKEN", "")
+# Separate server-to-server credential for the fixed-school aggregate endpoint.
+VIDYADESK_READ_TOKEN = os.environ.get("VIDYADESK_READ_TOKEN", "")
 HOST = os.environ.get("JOB_SERVER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("JOB_SERVER_PORT", "8787"))
 TIMEOUT = int(os.environ.get("JOB_SERVER_TIMEOUT", "900"))
@@ -439,6 +442,42 @@ def rate_limited(ip: str) -> bool:
 
 # ---------------------------------------------------------------- handler --
 
+def _vidyadesk_status(*, now: float | None = None) -> dict[str, Any]:
+    """Return aggregate job health for UMV Tetahali; never expose job records."""
+    timestamp = time.time() if now is None else now
+    with _lock:
+        jobs = [dict(job) for job in _jobs.values() if job.get("school") == "Tetahali"]
+    counts = Counter(str(job.get("status", "other")) for job in jobs)
+    by_status = {key: int(counts.get(key, 0)) for key in ("queued", "running", "done", "failed")}
+    by_status["other"] = sum(value for key, value in counts.items() if key not in by_status)
+    stale_queued = stale_running = 0
+    latest: float | None = None
+    for job in jobs:
+        created = job.get("created_at")
+        finished = job.get("finished_at")
+        for candidate in (created, finished):
+            if isinstance(candidate, (int, float)) and not isinstance(candidate, bool):
+                latest = max(latest or float(candidate), float(candidate))
+        if isinstance(created, (int, float)) and not isinstance(created, bool):
+            age = max(0.0, timestamp - float(created))
+            if job.get("status") == "queued" and age >= 1800:
+                stale_queued += 1
+            elif job.get("status") == "running" and age >= 1200:
+                stale_running += 1
+    return {
+        "contractVersion": "1.0.0",
+        "ok": stale_queued == 0 and stale_running == 0 and by_status["other"] == 0,
+        "service": "eshikshakosh-jobserver",
+        "scope": {"schoolKey": "umv-tetahali", "udiseCode": "10160203806"},
+        "totalJobs": len(jobs),
+        "byStatus": by_status,
+        "staleQueued": stale_queued,
+        "staleRunning": stale_running,
+        "latestJobAt": int(latest) if latest is not None else None,
+        "retrievedAt": int(timestamp),
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "SchoolDataDesk/1.0"
     protocol_version = "HTTP/1.1"
@@ -455,6 +494,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def _json(self, code: int, obj: Any) -> None:
         self._send(code, json.dumps(obj).encode())
+
+    def _vidyadesk_authed(self) -> bool:
+        header = self.headers.get("X-Vidyadesk-Token", "")
+        return bool(VIDYADESK_READ_TOKEN and header) and hmac.compare_digest(header, VIDYADESK_READ_TOKEN)
 
     def _authed(self) -> bool:
         if not TOKEN:
@@ -478,6 +521,15 @@ class Handler(BaseHTTPRequestHandler):
     # -- routes ----------------------------------------------------------
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/v1/integrations/vidyadesk/status":
+            if not self._vidyadesk_authed():
+                self._json(401, {"error": "unauthorized"})
+                return
+            if rate_limited(self.client_address[0]):
+                self._json(429, {"error": "rate limited"})
+                return
+            self._json(200, _vidyadesk_status())
+            return
         if self.path == "/health":
             self._json(200, {"ok": True})
             return
